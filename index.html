@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>教室螢幕系統 v4.0 (多班級版)</title>
+    <style>
+        /* --- 1. 基礎設定 --- */
+        body, html {
+            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
+            font-family: "微軟正黑體", sans-serif;
+            overscroll-behavior: none; 
+        }
+
+        #bg-layer {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background-image: url('https://images.unsplash.com/photo-1501854140884-074cf2b2c3af?q=80&w=1920&auto=format&fit=crop');
+            background-size: cover; background-position: center; z-index: -1;
+            transition: background-image 0.5s; /* 換班級時背景也可以微調(目前先共用) */
+        }
+
+        /* --- NEW: 班級切換列 --- */
+        .class-bar {
+            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(8px);
+            padding: 8px 10px; border-radius: 50px;
+            display: flex; gap: 5px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+            z-index: 200;
+        }
+
+        .class-btn {
+            border: none; background: transparent;
+            padding: 8px 16px; border-radius: 20px;
+            font-size: 16px; font-weight: bold; color: #666;
+            cursor: pointer; transition: all 0.2s;
+            user-select: none;
+        }
+
+        .class-btn:hover { background: #eee; }
+
+        /* 當前選中的班級樣式 */
+        .class-btn.active {
+            background: #2196F3; color: white;
+            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.4);
+        }
+
+        /* --- 2. 底部工具列 (Dock) --- */
+        .dock-container {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(12px);
+            padding: 12px 24px; border-radius: 24px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2);
+            border: 1px solid rgba(255, 255, 255, 0.3); display: flex; gap: 20px;
+            z-index: 100;
+        }
+
+        .dock-btn {
+            width: 60px; height: 60px; border: none; background: white;
+            border-radius: 16px; font-size: 30px; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.1s;
+            user-select: none; -webkit-user-select: none;
+        }
+        .dock-btn:active { transform: scale(0.9); }
+
+        /* --- 3. 視窗通用樣式 --- */
+        .widget-window {
+            position: absolute; width: 340px; 
+            background: rgba(255, 255, 255, 0.98);
+            border-radius: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.3);
+            display: none; flex-direction: column; overflow: hidden;
+            top: 100px; left: 50px;
+            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
+
+        .window-header {
+            background: #f8f9fa; padding: 15px; cursor: move;
+            display: flex; justify-content: space-between; align-items: center;
+            user-select: none; border-bottom: 1px solid #eee; touch-action: none;
+        }
+        .window-title { font-weight: bold; font-size: 18px; color: #333; }
+        .window-subtitle { font-size: 12px; color: #2196F3; margin-left: 8px; font-weight: normal; } /* 顯示目前是哪一班 */
+        .close-btn {
+            width: 30px; height: 30px; background: #ff5f57; border-radius: 50%;
+            color: white; text-align: center; line-height: 28px; font-weight: bold; cursor: pointer;
+        }
+        .window-content { padding: 15px; }
+
+        /* --- 4. 功能特定樣式 --- */
+        .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .score-card { background: #fff; border: 2px solid #eee; border-radius: 12px; padding: 10px; text-align: center; }
+        .score-animal { font-size: 24px; display: block; }
+        .score-value { font-size: 28px; font-weight: bold; color: #333; margin: 5px 0; }
+        .score-actions button { width: 30px; height: 30px; border-radius: 50%; border: none; color: white; cursor: pointer; margin: 0 5px;}
+        .btn-add { background: #4CAF50; } .btn-minus { background: #ff9800; }
+
+        .hw-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 15px; }
+        .student-circle {
+            width: 45px; height: 45px; border-radius: 50%; background: #f0f0f0; border: 2px solid #ddd;
+            display: flex; justify-content: center; align-items: center; font-weight: bold; color: #666; cursor: pointer; user-select: none;
+        }
+        .status-done { background: #4CAF50; border-color: #388E3C; color: white; }
+        .status-missing { background: #ff5252; border-color: #D32F2F; color: white; }
+        .hw-summary { background: #eee; border-radius: 8px; padding: 10px; font-size: 14px; text-align: center; color: #555; }
+
+    </style>
+</head>
+<body>
+
+    <div id="bg-layer"></div>
+
+    <div class="class-bar">
+        <button class="class-btn active" onclick="switchClass(1)">1 班</button>
+        <button class="class-btn" onclick="switchClass(2)">2 班</button>
+        <button class="class-btn" onclick="switchClass(3)">3 班</button>
+        <button class="class-btn" onclick="switchClass(4)">4 班</button>
+        <button class="class-btn" onclick="switchClass(5)">5 班</button>
+        <button class="class-btn" onclick="switchClass(6)">6 班</button>
+    </div>
+
+    <div class="dock-container">
+        <button class="dock-btn" onclick="toggleWidget('widget-scores')">🏆</button>
+        <button class="dock-btn" onclick="toggleWidget('widget-homework')">📝</button>
+    </div>
+
+    <div id="widget-scores" class="widget-window" style="left: 50px;">
+        <div class="window-header">
+            <div>
+                <span class="window-title">小組競賽</span>
+                <span class="window-subtitle" id="title-class-score">1 班</span>
+            </div>
+            <span class="close-btn" onclick="toggleWidget('widget-scores')">×</span>
+        </div>
+        <div class="window-content">
+            <div class="score-grid" id="score-grid"></div>
+            <div style="text-align:center; margin-top:10px;">
+                <button onclick="resetScores()" style="text-decoration:underline; border:none; background:none; color:#999; cursor:pointer;">本班歸零</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="widget-homework" class="widget-window" style="left: 420px;">
+        <div class="window-header">
+            <div>
+                <span class="window-title">作業登記</span>
+                <span class="window-subtitle" id="title-class-hw">1 班</span>
+            </div>
+            <span class="close-btn" onclick="toggleWidget('widget-homework')">×</span>
+        </div>
+        <div class="window-content">
+            <div class="hw-grid" id="hw-grid"></div>
+            <div class="hw-summary" id="hw-summary">統計中...</div>
+            <div style="text-align:center; margin-top:10px;">
+                <button onclick="resetHomework()" style="text-decoration:underline; border:none; background:none; color:#999; cursor:pointer;">本班重置</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ==========================================
+        //  核心: 多班級管理系統 (Class Manager)
+        // ==========================================
+        let currentClass = parseInt(localStorage.getItem('currentActiveIdx')) || 1; // 預設第1班
+        const STUDENT_COUNT = 30; // 預設每班人數，可在此調整
+
+        // 初始化
+        updateClassUI();
+        loadAllData();
+
+        function switchClass(classIdx) {
+            currentClass = classIdx;
+            // 存住現在選的是哪一班
+            localStorage.setItem('currentActiveIdx', currentClass);
+            
+            // UI 更新
+            updateClassUI();
+            
+            // 資料重載
+            loadAllData();
+        }
+
+        function updateClassUI() {
+            // 更新頂部按鈕樣式
+            document.querySelectorAll('.class-btn').forEach((btn, idx) => {
+                if (idx + 1 === currentClass) btn.classList.add('active');
+                else btn.classList.remove('active');
+            });
+
+            // 更新視窗標題旁的小字
+            document.getElementById('title-class-score').innerText = `${currentClass} 班`;
+            document.getElementById('title-class-hw').innerText = `${currentClass} 班`;
+        }
+
+        function loadAllData() {
+            renderScores();
+            renderHomework();
+        }
+
+        // ==========================================
+        //  模組 A: 小組分數 (含班級 Key)
+        // ==========================================
+        const defaultScores = [
+            { icon: '🦁', score: 0 }, { icon: '🐰', score: 0 },
+            { icon: '🐼', score: 0 }, { icon: '🦊', score: 0 }
+        ];
+
+        function getScoreData() {
+            const key = `class_${currentClass}_scores`;
+            return JSON.parse(localStorage.getItem(key)) || JSON.parse(JSON.stringify(defaultScores));
+        }
+
+        function saveScoreData(data) {
+            const key = `class_${currentClass}_scores`;
+            localStorage.setItem(key, JSON.stringify(data));
+        }
+
+        function renderScores() {
+            const data = getScoreData();
+            const grid = document.getElementById('score-grid');
+            grid.innerHTML = '';
+            data.forEach((group, index) => {
+                grid.innerHTML += `
+                    <div class="score-card">
+                        <span class="score-animal">${group.icon}</span>
+                        <div class="score-value">${group.score}</div>
+                        <div class="score-actions">
+                            <button class="btn-minus" onclick="updateScore(${index}, -1)">-</button>
+                            <button class="btn-add" onclick="updateScore(${index}, 1)">+</button>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function updateScore(index, change) {
+            let data = getScoreData();
+            data[index].score = Math.max(0, data[index].score + change);
+            saveScoreData(data);
+            renderScores();
+        }
+
+        function resetScores() {
+            if(confirm(`確定要歸零【${currentClass} 班】的小組分數嗎？`)) {
+                saveScoreData(JSON.parse(JSON.stringify(defaultScores))); // 重置為預設
+                renderScores();
+            }
+        }
+
+        // ==========================================
+        //  模組 B: 作業登記 (含班級 Key)
+        // ==========================================
+        function getHWData() {
+            const key = `class_${currentClass}_homework`;
+            return JSON.parse(localStorage.getItem(key)) || new Array(STUDENT_COUNT).fill(0);
+        }
+
+        function saveHWData(data) {
+            const key = `class_${currentClass}_homework`;
+            localStorage.setItem(key, JSON.stringify(data));
+        }
+
+        function renderHomework() {
+            const data = getHWData();
+            const grid = document.getElementById('hw-grid');
+            const summary = document.getElementById('hw-summary');
+            grid.innerHTML = '';
+
+            let doneCount = 0, missingCount = 0;
+
+            data.forEach((status, index) => {
+                let cssClass = '';
+                if (status === 1) { cssClass = 'status-done'; doneCount++; }
+                if (status === 2) { cssClass = 'status-missing'; missingCount++; }
+
+                grid.innerHTML += `
+                    <div class="student-circle ${cssClass}" onclick="toggleHW(${index})">
+                        ${index + 1}
+                    </div>
+                `;
+            });
+
+            summary.innerHTML = `
+                ${currentClass}班 - 已繳交: <b>${doneCount}</b> | <span style="color:red">缺交: <b>${missingCount}</b></span>
+            `;
+        }
+
+        function toggleHW(index) {
+            let data = getHWData();
+            data[index] = (data[index] + 1) % 3;
+            saveHWData(data);
+            renderHomework();
+        }
+
+        function resetHomework() {
+            if(confirm(`確定要清空【${currentClass} 班】的所有作業紀錄嗎？`)) {
+                saveHWData(new Array(STUDENT_COUNT).fill(0));
+                renderHomework();
+            }
+        }
+
+        // ==========================================
+        //  拖曳系統 (維持不變)
+        // ==========================================
+        let zIndexCounter = 100;
+        function makeDraggable(el) {
+            const header = el.querySelector('.window-header');
+            let isDragging = false, startX, startY, initialLeft, initialTop;
+
+            function dragStart(e) {
+                el.style.zIndex = ++zIndexCounter;
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                isDragging = true;
+                startX = clientX; startY = clientY;
+                initialLeft = el.offsetLeft; initialTop = el.offsetTop;
+            }
+            function dragMove(e) {
+                if (!isDragging) return;
+                e.preventDefault();
+                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
+                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
+                el.style.left = `${initialLeft + (clientX - startX)}px`;
+                el.style.top = `${initialTop + (clientY - startY)}px`;
+            }
+            function dragEnd() { isDragging = false; }
+
+            header.addEventListener("mousedown", dragStart);
+            header.addEventListener("touchstart", dragStart, {passive: false});
+            document.addEventListener("mousemove", dragMove);
+            document.addEventListener("touchmove", dragMove, {passive: false});
+            document.addEventListener("mouseup", dragEnd);
+            document.addEventListener("touchend", dragEnd);
+        }
+        document.querySelectorAll('.widget-window').forEach(win => makeDraggable(win));
+        function toggleWidget(id) {
+            const el = document.getElementById(id);
+            if (el.style.display === 'flex') { el.style.display = 'none'; } 
+            else { el.style.display = 'flex'; el.style.zIndex = ++zIndexCounter; }
+        }
+
+    </script>
+</body>
+</html>
