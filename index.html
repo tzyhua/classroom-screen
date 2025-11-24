@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>教室螢幕系統 v4.0 (多班級版)</title>
+    <title>教室螢幕系統 v5.0 (旗艦版)</title>
     <style>
         /* --- 1. 基礎設定 --- */
         body, html {
@@ -14,39 +14,26 @@
 
         #bg-layer {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
-            background-image: url('https://images.unsplash.com/photo-1501854140884-074cf2b2c3af?q=80&w=1920&auto=format&fit=crop');
+            background-image: url('https://images.unsplash.com/photo-1506744038136-46273834b3fb?q=80&w=1920&auto=format&fit=crop');
             background-size: cover; background-position: center; z-index: -1;
-            transition: background-image 0.5s; /* 換班級時背景也可以微調(目前先共用) */
+            transition: background-image 0.5s;
         }
 
-        /* --- NEW: 班級切換列 --- */
+        /* --- 班級切換列 --- */
         .class-bar {
             position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.85);
-            backdrop-filter: blur(8px);
-            padding: 8px 10px; border-radius: 50px;
-            display: flex; gap: 5px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15);
-            z-index: 200;
+            background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(8px);
+            padding: 8px 10px; border-radius: 50px; display: flex; gap: 5px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 200;
         }
-
         .class-btn {
-            border: none; background: transparent;
-            padding: 8px 16px; border-radius: 20px;
-            font-size: 16px; font-weight: bold; color: #666;
-            cursor: pointer; transition: all 0.2s;
-            user-select: none;
+            border: none; background: transparent; padding: 8px 16px; border-radius: 20px;
+            font-size: 16px; font-weight: bold; color: #666; cursor: pointer; transition: all 0.2s;
         }
-
         .class-btn:hover { background: #eee; }
+        .class-btn.active { background: #2196F3; color: white; box-shadow: 0 2px 8px rgba(33, 150, 243, 0.4); }
 
-        /* 當前選中的班級樣式 */
-        .class-btn.active {
-            background: #2196F3; color: white;
-            box-shadow: 0 2px 8px rgba(33, 150, 243, 0.4);
-        }
-
-        /* --- 2. 底部工具列 (Dock) --- */
+        /* --- 底部 Dock --- */
         .dock-container {
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(12px);
@@ -55,16 +42,15 @@
             border: 1px solid rgba(255, 255, 255, 0.3); display: flex; gap: 20px;
             z-index: 100;
         }
-
         .dock-btn {
             width: 60px; height: 60px; border: none; background: white;
             border-radius: 16px; font-size: 30px; cursor: pointer;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.1s;
-            user-select: none; -webkit-user-select: none;
+            user-select: none;
         }
         .dock-btn:active { transform: scale(0.9); }
 
-        /* --- 3. 視窗通用樣式 --- */
+        /* --- 視窗通用 --- */
         .widget-window {
             position: absolute; width: 340px; 
             background: rgba(255, 255, 255, 0.98);
@@ -81,14 +67,14 @@
             user-select: none; border-bottom: 1px solid #eee; touch-action: none;
         }
         .window-title { font-weight: bold; font-size: 18px; color: #333; }
-        .window-subtitle { font-size: 12px; color: #2196F3; margin-left: 8px; font-weight: normal; } /* 顯示目前是哪一班 */
+        .window-subtitle { font-size: 12px; color: #2196F3; margin-left: 8px; font-weight: normal; }
         .close-btn {
             width: 30px; height: 30px; background: #ff5f57; border-radius: 50%;
             color: white; text-align: center; line-height: 28px; font-weight: bold; cursor: pointer;
         }
         .window-content { padding: 15px; }
 
-        /* --- 4. 功能特定樣式 --- */
+        /* --- 小組 & 作業樣式 --- */
         .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .score-card { background: #fff; border: 2px solid #eee; border-radius: 12px; padding: 10px; text-align: center; }
         .score-animal { font-size: 24px; display: block; }
@@ -104,6 +90,34 @@
         .status-done { background: #4CAF50; border-color: #388E3C; color: white; }
         .status-missing { background: #ff5252; border-color: #D32F2F; color: white; }
         .hw-summary { background: #eee; border-radius: 8px; padding: 10px; font-size: 14px; text-align: center; color: #555; }
+
+        /* --- 計時器特定樣式 (NEW) --- */
+        .timer-tabs { display: flex; background: #eee; border-radius: 10px; padding: 4px; margin-bottom: 15px; }
+        .tab-btn { flex: 1; border: none; background: transparent; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #777; }
+        .tab-btn.active { background: white; color: #2196F3; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        
+        .timer-display {
+            font-size: 60px; font-weight: bold; text-align: center; color: #333; font-family: 'Courier New', monospace;
+            margin: 10px 0; letter-spacing: 2px;
+        }
+        .timer-display.red-alert { color: #ff5252; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+        .timer-controls { display: flex; justify-content: center; gap: 15px; margin-bottom: 15px; }
+        .control-btn {
+            width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 20px; cursor: pointer;
+            display: flex; justify-content: center; align-items: center; box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .btn-play { background: #4CAF50; color: white; }
+        .btn-pause { background: #FFC107; color: white; }
+        .btn-reset { background: #eee; color: #555; }
+
+        .preset-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+        .preset-btn {
+            border: 1px solid #ddd; background: white; padding: 8px; border-radius: 8px; cursor: pointer;
+            font-size: 14px; color: #555; transition: background 0.2s;
+        }
+        .preset-btn:hover { background: #f0f0f0; }
 
     </style>
 </head>
@@ -121,16 +135,40 @@
     </div>
 
     <div class="dock-container">
+        <button class="dock-btn" onclick="toggleWidget('widget-timer')">⏳</button>
         <button class="dock-btn" onclick="toggleWidget('widget-scores')">🏆</button>
         <button class="dock-btn" onclick="toggleWidget('widget-homework')">📝</button>
     </div>
 
-    <div id="widget-scores" class="widget-window" style="left: 50px;">
+    <div id="widget-timer" class="widget-window" style="left: 50px; top: 80px;">
         <div class="window-header">
-            <div>
-                <span class="window-title">小組競賽</span>
-                <span class="window-subtitle" id="title-class-score">1 班</span>
+            <span class="window-title">計時器</span>
+            <span class="close-btn" onclick="toggleWidget('widget-timer')">×</span>
+        </div>
+        <div class="window-content">
+            <div class="timer-tabs">
+                <button class="tab-btn active" onclick="switchTimerMode('countdown')">倒數計時</button>
+                <button class="tab-btn" onclick="switchTimerMode('stopwatch')">正向計時</button>
             </div>
+            
+            <div class="timer-display" id="timer-text">05:00</div>
+            
+            <div class="timer-controls">
+                <button class="control-btn btn-reset" onclick="resetTimer()">↺</button>
+                <button class="control-btn btn-play" id="play-btn" onclick="toggleTimer()">▶</button>
+            </div>
+
+            <div class="preset-btns" id="preset-area">
+                <button class="preset-btn" onclick="addTime(10)">+10秒</button>
+                <button class="preset-btn" onclick="addTime(60)">+1分</button>
+                <button class="preset-btn" onclick="addTime(300)">+5分</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="widget-scores" class="widget-window" style="left: 420px; top: 80px;">
+        <div class="window-header">
+            <div><span class="window-title">小組競賽</span><span class="window-subtitle" id="title-class-score">1 班</span></div>
             <span class="close-btn" onclick="toggleWidget('widget-scores')">×</span>
         </div>
         <div class="window-content">
@@ -141,12 +179,9 @@
         </div>
     </div>
 
-    <div id="widget-homework" class="widget-window" style="left: 420px;">
+    <div id="widget-homework" class="widget-window" style="left: 50px; top: 450px;">
         <div class="window-header">
-            <div>
-                <span class="window-title">作業登記</span>
-                <span class="window-subtitle" id="title-class-hw">1 班</span>
-            </div>
+            <div><span class="window-title">作業登記</span><span class="window-subtitle" id="title-class-hw">1 班</span></div>
             <span class="close-btn" onclick="toggleWidget('widget-homework')">×</span>
         </div>
         <div class="window-content">
@@ -160,35 +195,163 @@
 
     <script>
         // ==========================================
-        //  核心: 多班級管理系統 (Class Manager)
+        //  模組 C: 計時器 (Timer Logic) ★ NEW
         // ==========================================
-        let currentClass = parseInt(localStorage.getItem('currentActiveIdx')) || 1; // 預設第1班
-        const STUDENT_COUNT = 30; // 預設每班人數，可在此調整
+        let timerMode = 'countdown'; // 'countdown' or 'stopwatch'
+        let timeRemaining = 300; // 預設 5分鐘 (秒)
+        let stopwatchTime = 0;
+        let timerInterval = null;
+        let isRunning = false;
 
-        // 初始化
+        function switchTimerMode(mode) {
+            timerMode = mode;
+            isRunning = false;
+            clearInterval(timerInterval);
+            
+            // UI 切換
+            document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // 按鈕顯示邏輯
+            document.getElementById('play-btn').innerText = '▶';
+            document.getElementById('play-btn').className = 'control-btn btn-play';
+            document.getElementById('timer-text').classList.remove('red-alert');
+
+            if (mode === 'countdown') {
+                document.getElementById('preset-area').style.display = 'grid';
+                timeRemaining = 300; // 重置回 5 分
+                updateTimerDisplay(timeRemaining);
+            } else {
+                document.getElementById('preset-area').style.display = 'none';
+                stopwatchTime = 0;
+                updateTimerDisplay(stopwatchTime);
+            }
+        }
+
+        function updateTimerDisplay(seconds) {
+            const m = Math.floor(seconds / 60).toString().padStart(2, '0');
+            const s = (seconds % 60).toString().padStart(2, '0');
+            document.getElementById('timer-text').innerText = `${m}:${s}`;
+        }
+
+        function toggleTimer() {
+            const btn = document.getElementById('play-btn');
+            
+            if (isRunning) {
+                // 暫停
+                clearInterval(timerInterval);
+                isRunning = false;
+                btn.innerText = '▶';
+                btn.className = 'control-btn btn-play';
+            } else {
+                // 開始
+                isRunning = true;
+                btn.innerText = '⏸';
+                btn.className = 'control-btn btn-pause';
+                
+                timerInterval = setInterval(() => {
+                    if (timerMode === 'countdown') {
+                        if (timeRemaining > 0) {
+                            timeRemaining--;
+                            updateTimerDisplay(timeRemaining);
+                        } else {
+                            // 時間到
+                            timeUp();
+                        }
+                    } else {
+                        // 正向計時
+                        stopwatchTime++;
+                        updateTimerDisplay(stopwatchTime);
+                    }
+                }, 1000);
+            }
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            document.getElementById('play-btn').innerText = '▶';
+            document.getElementById('play-btn').className = 'control-btn btn-play';
+            document.getElementById('timer-text').classList.remove('red-alert');
+            
+            if (timerMode === 'countdown') {
+                timeRemaining = 300;
+                updateTimerDisplay(timeRemaining);
+            } else {
+                stopwatchTime = 0;
+                updateTimerDisplay(stopwatchTime);
+            }
+        }
+
+        function addTime(seconds) {
+            if (timerMode === 'countdown') {
+                timeRemaining += seconds;
+                updateTimerDisplay(timeRemaining);
+            }
+        }
+
+        function timeUp() {
+            clearInterval(timerInterval);
+            isRunning = false;
+            document.getElementById('play-btn').innerText = '▶';
+            document.getElementById('play-btn').className = 'control-btn btn-play';
+            document.getElementById('timer-text').classList.add('red-alert');
+            playBeepSound(); // 播放音效
+        }
+
+        // --- 瀏覽器內建音效產生器 (無需 mp3) ---
+        function playBeepSound() {
+            const AudioContext = window.AudioContext || window.webkitAudioContext;
+            if (!AudioContext) return;
+            
+            const ctx = new AudioContext();
+            const osc = ctx.createOscillator();
+            const gainNode = ctx.createGain();
+
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(880, ctx.currentTime); // 880Hz (高音)
+            osc.frequency.exponentialRampToValueAtTime(440, ctx.currentTime + 0.5); // 降調效果
+
+            gainNode.gain.setValueAtTime(0.5, ctx.currentTime);
+            gainNode.gain.exponentialRampToValueAtTime(0.01, ctx.currentTime + 0.5);
+
+            osc.connect(gainNode);
+            gainNode.connect(ctx.destination);
+
+            osc.start();
+            osc.stop(ctx.currentTime + 0.5); // 響 0.5 秒
+            
+            // 連續響三聲
+            setTimeout(() => {
+                const osc2 = ctx.createOscillator();
+                const gain2 = ctx.createGain();
+                osc2.connect(gain2);
+                gain2.connect(ctx.destination);
+                osc2.start();
+                osc2.stop(ctx.currentTime + 0.5); 
+            }, 600);
+        }
+
+        // ==========================================
+        //  其他系統功能 (維持 v4 版邏輯)
+        // ==========================================
+        let currentClass = parseInt(localStorage.getItem('currentActiveIdx')) || 1;
+        const STUDENT_COUNT = 30;
+
         updateClassUI();
         loadAllData();
 
         function switchClass(classIdx) {
             currentClass = classIdx;
-            // 存住現在選的是哪一班
             localStorage.setItem('currentActiveIdx', currentClass);
-            
-            // UI 更新
             updateClassUI();
-            
-            // 資料重載
             loadAllData();
         }
 
         function updateClassUI() {
-            // 更新頂部按鈕樣式
             document.querySelectorAll('.class-btn').forEach((btn, idx) => {
-                if (idx + 1 === currentClass) btn.classList.add('active');
-                else btn.classList.remove('active');
+                btn.classList.toggle('active', idx + 1 === currentClass);
             });
-
-            // 更新視窗標題旁的小字
             document.getElementById('title-class-score').innerText = `${currentClass} 班`;
             document.getElementById('title-class-hw').innerText = `${currentClass} 班`;
         }
@@ -198,139 +361,57 @@
             renderHomework();
         }
 
-        // ==========================================
-        //  模組 A: 小組分數 (含班級 Key)
-        // ==========================================
-        const defaultScores = [
-            { icon: '🦁', score: 0 }, { icon: '🐰', score: 0 },
-            { icon: '🐼', score: 0 }, { icon: '🦊', score: 0 }
-        ];
-
-        function getScoreData() {
-            const key = `class_${currentClass}_scores`;
-            return JSON.parse(localStorage.getItem(key)) || JSON.parse(JSON.stringify(defaultScores));
-        }
-
-        function saveScoreData(data) {
-            const key = `class_${currentClass}_scores`;
-            localStorage.setItem(key, JSON.stringify(data));
-        }
-
+        // --- 分數邏輯 ---
+        const defaultScores = [{ icon: '🦁', score: 0 }, { icon: '🐰', score: 0 }, { icon: '🐼', score: 0 }, { icon: '🦊', score: 0 }];
+        function getScoreData() { return JSON.parse(localStorage.getItem(`class_${currentClass}_scores`)) || JSON.parse(JSON.stringify(defaultScores)); }
+        function saveScoreData(data) { localStorage.setItem(`class_${currentClass}_scores`, JSON.stringify(data)); }
         function renderScores() {
-            const data = getScoreData();
             const grid = document.getElementById('score-grid');
             grid.innerHTML = '';
-            data.forEach((group, index) => {
-                grid.innerHTML += `
-                    <div class="score-card">
-                        <span class="score-animal">${group.icon}</span>
-                        <div class="score-value">${group.score}</div>
-                        <div class="score-actions">
-                            <button class="btn-minus" onclick="updateScore(${index}, -1)">-</button>
-                            <button class="btn-add" onclick="updateScore(${index}, 1)">+</button>
-                        </div>
-                    </div>`;
+            getScoreData().forEach((group, index) => {
+                grid.innerHTML += `<div class="score-card"><span class="score-animal">${group.icon}</span><div class="score-value">${group.score}</div><div class="score-actions"><button class="btn-minus" onclick="updateScore(${index}, -1)">-</button><button class="btn-add" onclick="updateScore(${index}, 1)">+</button></div></div>`;
             });
         }
+        function updateScore(i, c) { let d = getScoreData(); d[i].score = Math.max(0, d[i].score + c); saveScoreData(d); renderScores(); }
+        function resetScores() { if(confirm(`歸零 ${currentClass} 班分數？`)) { saveScoreData(JSON.parse(JSON.stringify(defaultScores))); renderScores(); }}
 
-        function updateScore(index, change) {
-            let data = getScoreData();
-            data[index].score = Math.max(0, data[index].score + change);
-            saveScoreData(data);
-            renderScores();
-        }
-
-        function resetScores() {
-            if(confirm(`確定要歸零【${currentClass} 班】的小組分數嗎？`)) {
-                saveScoreData(JSON.parse(JSON.stringify(defaultScores))); // 重置為預設
-                renderScores();
-            }
-        }
-
-        // ==========================================
-        //  模組 B: 作業登記 (含班級 Key)
-        // ==========================================
-        function getHWData() {
-            const key = `class_${currentClass}_homework`;
-            return JSON.parse(localStorage.getItem(key)) || new Array(STUDENT_COUNT).fill(0);
-        }
-
-        function saveHWData(data) {
-            const key = `class_${currentClass}_homework`;
-            localStorage.setItem(key, JSON.stringify(data));
-        }
-
+        // --- 作業邏輯 ---
+        function getHWData() { return JSON.parse(localStorage.getItem(`class_${currentClass}_homework`)) || new Array(STUDENT_COUNT).fill(0); }
+        function saveHWData(data) { localStorage.setItem(`class_${currentClass}_homework`, JSON.stringify(data)); }
         function renderHomework() {
-            const data = getHWData();
             const grid = document.getElementById('hw-grid');
-            const summary = document.getElementById('hw-summary');
-            grid.innerHTML = '';
-
-            let doneCount = 0, missingCount = 0;
-
-            data.forEach((status, index) => {
-                let cssClass = '';
-                if (status === 1) { cssClass = 'status-done'; doneCount++; }
-                if (status === 2) { cssClass = 'status-missing'; missingCount++; }
-
-                grid.innerHTML += `
-                    <div class="student-circle ${cssClass}" onclick="toggleHW(${index})">
-                        ${index + 1}
-                    </div>
-                `;
+            grid.innerHTML = ''; let done=0, miss=0;
+            getHWData().forEach((st, i) => {
+                let cls = st===1 ? 'status-done' : (st===2 ? 'status-missing' : '');
+                if(st===1) done++; if(st===2) miss++;
+                grid.innerHTML += `<div class="student-circle ${cls}" onclick="toggleHW(${i})">${i+1}</div>`;
             });
-
-            summary.innerHTML = `
-                ${currentClass}班 - 已繳交: <b>${doneCount}</b> | <span style="color:red">缺交: <b>${missingCount}</b></span>
-            `;
+            document.getElementById('hw-summary').innerHTML = `${currentClass}班 - 已交:<b>${done}</b> | <span style="color:red">缺交:<b>${miss}</b></span>`;
         }
+        function toggleHW(i) { let d = getHWData(); d[i] = (d[i]+1)%3; saveHWData(d); renderHomework(); }
+        function resetHomework() { if(confirm(`重置 ${currentClass} 班作業？`)) { saveHWData(new Array(STUDENT_COUNT).fill(0)); renderHomework(); }}
 
-        function toggleHW(index) {
-            let data = getHWData();
-            data[index] = (data[index] + 1) % 3;
-            saveHWData(data);
-            renderHomework();
-        }
-
-        function resetHomework() {
-            if(confirm(`確定要清空【${currentClass} 班】的所有作業紀錄嗎？`)) {
-                saveHWData(new Array(STUDENT_COUNT).fill(0));
-                renderHomework();
-            }
-        }
-
-        // ==========================================
-        //  拖曳系統 (維持不變)
-        // ==========================================
+        // --- 拖曳系統 ---
         let zIndexCounter = 100;
         function makeDraggable(el) {
             const header = el.querySelector('.window-header');
-            let isDragging = false, startX, startY, initialLeft, initialTop;
-
-            function dragStart(e) {
+            let isD = false, sX, sY, iL, iT;
+            const start = (e) => {
                 el.style.zIndex = ++zIndexCounter;
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                isDragging = true;
-                startX = clientX; startY = clientY;
-                initialLeft = el.offsetLeft; initialTop = el.offsetTop;
-            }
-            function dragMove(e) {
-                if (!isDragging) return;
-                e.preventDefault();
-                const clientX = e.touches ? e.touches[0].clientX : e.clientX;
-                const clientY = e.touches ? e.touches[0].clientY : e.clientY;
-                el.style.left = `${initialLeft + (clientX - startX)}px`;
-                el.style.top = `${initialTop + (clientY - startY)}px`;
-            }
-            function dragEnd() { isDragging = false; }
-
-            header.addEventListener("mousedown", dragStart);
-            header.addEventListener("touchstart", dragStart, {passive: false});
-            document.addEventListener("mousemove", dragMove);
-            document.addEventListener("touchmove", dragMove, {passive: false});
-            document.addEventListener("mouseup", dragEnd);
-            document.addEventListener("touchend", dragEnd);
+                const cX = e.touches ? e.touches[0].clientX : e.clientX;
+                const cY = e.touches ? e.touches[0].clientY : e.clientY;
+                isD = true; sX = cX; sY = cY; iL = el.offsetLeft; iT = el.offsetTop;
+            };
+            const move = (e) => {
+                if(!isD) return; e.preventDefault();
+                const cX = e.touches ? e.touches[0].clientX : e.clientX;
+                const cY = e.touches ? e.touches[0].clientY : e.clientY;
+                el.style.left = `${iL + (cX - sX)}px`; el.style.top = `${iT + (cY - sY)}px`;
+            };
+            const end = () => { isD = false; };
+            header.addEventListener("mousedown", start); header.addEventListener("touchstart", start, {passive:false});
+            document.addEventListener("mousemove", move); document.addEventListener("touchmove", move, {passive:false});
+            document.addEventListener("mouseup", end); document.addEventListener("touchend", end);
         }
         document.querySelectorAll('.widget-window').forEach(win => makeDraggable(win));
         function toggleWidget(id) {
@@ -338,7 +419,6 @@
             if (el.style.display === 'flex') { el.style.display = 'none'; } 
             else { el.style.display = 'flex'; el.style.zIndex = ++zIndexCounter; }
         }
-
     </script>
 </body>
 </html>
