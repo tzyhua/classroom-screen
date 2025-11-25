@@ -3,37 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>教室螢幕系統 v6.0 (進度管理版)</title>
+    <title>教室螢幕系統 v7.0 (客製化版)</title>
     <style>
         /* --- 1. 基礎設定 --- */
-        body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden;
-            font-family: "微軟正黑體", sans-serif;
-            overscroll-behavior: none; 
-        }
-
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; overflow: hidden; font-family: "微軟正黑體", sans-serif; overscroll-behavior: none; }
+        
         #bg-layer {
             position: fixed; top: 0; left: 0; width: 100%; height: 100%;
             background-image: url('https://images.unsplash.com/photo-1497561813398-8fcc7a37b567?q=80&w=1920&auto=format&fit=crop');
-            background-size: cover; background-position: center; z-index: -1;
-            transition: background-image 0.5s;
+            background-size: cover; background-position: center; z-index: -1; transition: background-image 0.5s;
         }
 
-        /* --- 班級切換列 --- */
-        .class-bar {
-            position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
-            background: rgba(255, 255, 255, 0.85); backdrop-filter: blur(8px);
-            padding: 8px 10px; border-radius: 50px; display: flex; gap: 5px;
-            box-shadow: 0 4px 15px rgba(0,0,0,0.15); z-index: 200;
+        /* --- 2. 班級切換列 (可捲動) --- */
+        .top-bar-container {
+            position: fixed; top: 20px; left: 0; width: 100%; z-index: 200;
+            display: flex; justify-content: center; align-items: center; pointer-events: none; /* 讓底下也能點 */
         }
+        .class-bar {
+            background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px);
+            padding: 8px 15px; border-radius: 50px; display: flex; gap: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); pointer-events: auto;
+            max-width: 90%; overflow-x: auto; white-space: nowrap; /* 支援多班級橫向捲動 */
+        }
+        /* 隱藏捲軸 */
+        .class-bar::-webkit-scrollbar { display: none; }
+
         .class-btn {
             border: none; background: transparent; padding: 8px 16px; border-radius: 20px;
             font-size: 16px; font-weight: bold; color: #666; cursor: pointer; transition: all 0.2s;
+            flex-shrink: 0;
         }
         .class-btn:hover { background: #eee; }
         .class-btn.active { background: #2196F3; color: white; box-shadow: 0 2px 8px rgba(33, 150, 243, 0.4); }
+        
+        .settings-btn {
+            border: none; background: #eee; width: 36px; height: 36px; border-radius: 50%;
+            cursor: pointer; display: flex; justify-content: center; align-items: center; font-size: 18px; color: #555;
+            flex-shrink: 0; margin-left: 5px;
+        }
+        .settings-btn:hover { background: #ddd; transform: rotate(90deg); transition: transform 0.3s; }
 
-        /* --- 底部 Dock --- */
+        /* --- 3. 底部 Dock --- */
         .dock-container {
             position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
             background: rgba(255, 255, 255, 0.4); backdrop-filter: blur(12px);
@@ -45,26 +55,20 @@
         .dock-btn {
             width: 55px; height: 55px; border: none; background: white;
             border-radius: 14px; font-size: 26px; cursor: pointer; position: relative;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.1s;
-            user-select: none;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.1s; user-select: none;
         }
         .dock-btn:active { transform: scale(0.9); }
-        /* Tooltip */
-        .dock-btn::after {
+        .dock-btn:hover::after {
             content: attr(data-title); position: absolute; top: -30px; left: 50%; transform: translateX(-50%);
-            background: rgba(0,0,0,0.7); color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px;
-            opacity: 0; pointer-events: none; transition: opacity 0.2s; white-space: nowrap;
+            background: rgba(0,0,0,0.7); color: white; padding: 2px 6px; border-radius: 4px; font-size: 10px; pointer-events: none;
         }
-        .dock-btn:hover::after { opacity: 1; }
 
-        /* --- 視窗通用 --- */
+        /* --- 4. 視窗通用 --- */
         .widget-window {
-            position: absolute; width: 340px; 
-            background: rgba(255, 255, 255, 0.98);
+            position: absolute; width: 340px; background: rgba(255, 255, 255, 0.98);
             border-radius: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.3);
             display: none; flex-direction: column; overflow: hidden;
-            top: 100px; left: 50px;
-            animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            top: 100px; left: 50px; animation: popIn 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
         }
         @keyframes popIn { 0% { transform: scale(0.8); opacity: 0; } 100% { transform: scale(1); opacity: 1; } }
 
@@ -75,60 +79,64 @@
         }
         .window-title { font-weight: bold; font-size: 18px; color: #333; }
         .window-subtitle { font-size: 12px; color: #2196F3; margin-left: 8px; font-weight: normal; }
-        .close-btn {
-            width: 30px; height: 30px; background: #ff5f57; border-radius: 50%;
-            color: white; text-align: center; line-height: 28px; font-weight: bold; cursor: pointer;
-        }
-        .window-content { padding: 15px; }
+        .close-btn { width: 30px; height: 30px; background: #ff5f57; border-radius: 50%; color: white; text-align: center; line-height: 28px; font-weight: bold; cursor: pointer; }
+        .window-content { padding: 15px; max-height: 400px; overflow-y: auto; }
 
-        /* --- 各功能樣式 --- */
-        
-        /* 1. 計時器 */
-        .timer-tabs { display: flex; background: #eee; border-radius: 10px; padding: 4px; margin-bottom: 15px; }
-        .tab-btn { flex: 1; border: none; background: transparent; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #777; }
-        .tab-btn.active { background: white; color: #2196F3; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .timer-display { font-size: 60px; font-weight: bold; text-align: center; color: #333; font-family: 'Courier New', monospace; margin: 10px 0; }
-        .timer-display.red-alert { color: #ff5252; animation: blink 1s infinite; }
-        @keyframes blink { 50% { opacity: 0.5; } }
+        /* --- 功能特定樣式 --- */
+        /* 計時器 */
+        .timer-display { font-size: 60px; font-weight: bold; text-align: center; color: #333; font-family: monospace; margin: 10px 0; }
+        .timer-display.red-alert { color: #ff5252; animation: blink 1s infinite; } @keyframes blink { 50% { opacity: 0.5; } }
         .timer-controls { display: flex; justify-content: center; gap: 15px; margin-bottom: 15px; }
         .control-btn { width: 50px; height: 50px; border-radius: 50%; border: none; font-size: 20px; cursor: pointer; display: flex; justify-content: center; align-items: center; }
         .btn-play { background: #4CAF50; color: white; } .btn-pause { background: #FFC107; color: white; } .btn-reset { background: #eee; color: #555; }
         .preset-btns { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-        .preset-btn { border: 1px solid #ddd; background: white; padding: 8px; border-radius: 8px; cursor: pointer; font-size: 14px; }
+        .preset-btn { border: 1px solid #ddd; background: white; padding: 8px; border-radius: 8px; cursor: pointer; }
+        .timer-tabs { display: flex; background: #eee; border-radius: 10px; padding: 4px; margin-bottom: 15px; }
+        .tab-btn { flex: 1; border: none; background: transparent; padding: 8px; border-radius: 8px; cursor: pointer; font-weight: bold; color: #777; }
+        .tab-btn.active { background: white; color: #2196F3; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
 
-        /* 2. 小組分數 */
+        /* 小組 & 作業 */
         .score-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
         .score-card { background: #fff; border: 2px solid #eee; border-radius: 12px; padding: 10px; text-align: center; }
-        .score-animal { font-size: 24px; display: block; }
-        .score-value { font-size: 28px; font-weight: bold; color: #333; margin: 5px 0; }
+        .score-value { font-size: 28px; font-weight: bold; margin: 5px 0; }
         .score-actions button { width: 30px; height: 30px; border-radius: 50%; border: none; color: white; cursor: pointer; margin: 0 5px;}
         .btn-add { background: #4CAF50; } .btn-minus { background: #ff9800; }
-
-        /* 3. 作業登記 */
-        .hw-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; margin-bottom: 15px; }
-        .student-circle { width: 45px; height: 45px; border-radius: 50%; background: #f0f0f0; border: 2px solid #ddd; display: flex; justify-content: center; align-items: center; font-weight: bold; color: #666; cursor: pointer; }
-        .status-done { background: #4CAF50; border-color: #388E3C; color: white; } .status-missing { background: #ff5252; border-color: #D32F2F; color: white; }
-        .hw-summary { background: #eee; border-radius: 8px; padding: 10px; font-size: 14px; text-align: center; color: #555; }
-
-        /* 4. 上課進度 (NEW) */
-        .memo-area {
-            width: 100%; height: 200px; padding: 10px; box-sizing: border-box;
-            border: 1px solid #ddd; border-radius: 10px; font-size: 16px; line-height: 1.5;
-            resize: none; background: #fffdf0; /* 模擬便條紙顏色 */
-            color: #333; outline: none;
-        }
-        .memo-area:focus { border-color: #FDD835; box-shadow: 0 0 0 2px rgba(253, 216, 53, 0.3); }
-
-        /* 5. 常用連結 (NEW) */
-        .link-input-group { display: flex; gap: 5px; margin-bottom: 10px; }
-        .link-input { flex: 1; padding: 8px; border: 1px solid #ddd; border-radius: 8px; outline: none; }
-        .btn-add-link { background: #2196F3; color: white; border: none; border-radius: 8px; padding: 0 12px; cursor: pointer; }
-        .link-list { max-height: 200px; overflow-y: auto; display: flex; flex-direction: column; gap: 8px; }
-        .link-item { display: flex; justify-content: space-between; align-items: center; background: #f5f5f5; padding: 8px 12px; border-radius: 8px; }
+        
+        /* 連結 & 備忘 */
+        .memo-area { width: 100%; height: 150px; padding: 10px; box-sizing: border-box; border: 1px solid #ddd; border-radius: 10px; resize: none; background: #fffdf0; outline: none; }
+        .link-item { display: flex; justify-content: space-between; align-items: center; background: #f5f5f5; padding: 8px 12px; border-radius: 8px; margin-bottom: 8px;}
         .link-item a { text-decoration: none; color: #333; font-weight: bold; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .link-item a:hover { color: #2196F3; }
-        .btn-del-link { background: none; border: none; color: #999; cursor: pointer; font-size: 16px; padding: 0 5px; }
-        .btn-del-link:hover { color: red; }
+        .btn-del-link { background: none; border: none; color: #999; cursor: pointer; font-size: 16px; }
+
+        /* --- NEW: 個人加分表單 (Individual Scores) --- */
+        .ind-grid { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+        .ind-card {
+            background: #fff; border: 1px solid #ddd; border-radius: 8px; padding: 5px;
+            display: flex; flex-direction: column; align-items: center; position: relative;
+            user-select: none;
+        }
+        .ind-num { font-size: 12px; color: #777; font-weight: bold; margin-bottom: 2px;}
+        .ind-score { font-size: 20px; font-weight: bold; color: #2196F3; cursor: pointer; }
+        .ind-score:active { transform: scale(1.2); }
+        .ind-ctrl { display: flex; gap: 5px; margin-top: 5px; width: 100%; justify-content: center;}
+        .ind-btn { width: 20px; height: 20px; border-radius: 4px; border: none; color: white; font-size: 14px; cursor: pointer; padding: 0; display:flex; justify-content:center; align-items:center;}
+        .ind-btn-minus { background: #ff9800; }
+        .ind-btn-add { background: #4CAF50; width: 100%; height: 25px; font-size: 16px;}
+
+        /* --- NEW: 班級設定彈窗 --- */
+        .settings-overlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(0,0,0,0.5); z-index: 500; display: none;
+            justify-content: center; align-items: center;
+        }
+        .settings-box {
+            background: white; padding: 20px; border-radius: 15px; width: 300px;
+            box-shadow: 0 10px 25px rgba(0,0,0,0.2);
+        }
+        .class-list-item { display: flex; justify-content: space-between; padding: 10px; border-bottom: 1px solid #eee; align-items: center; }
+        .class-list-item input { border: 1px solid #ddd; padding: 5px; border-radius: 4px; width: 120px; }
+        .btn-del-class { color: red; cursor: pointer; border: none; background: none; font-weight: bold; }
+        .btn-new-class { width: 100%; padding: 10px; background: #2196F3; color: white; border: none; border-radius: 8px; margin-top: 10px; cursor: pointer; }
 
     </style>
 </head>
@@ -136,18 +144,16 @@
 
     <div id="bg-layer"></div>
 
-    <div class="class-bar">
-        <button class="class-btn active" onclick="switchClass(1)">1 班</button>
-        <button class="class-btn" onclick="switchClass(2)">2 班</button>
-        <button class="class-btn" onclick="switchClass(3)">3 班</button>
-        <button class="class-btn" onclick="switchClass(4)">4 班</button>
-        <button class="class-btn" onclick="switchClass(5)">5 班</button>
-        <button class="class-btn" onclick="switchClass(6)">6 班</button>
+    <div class="top-bar-container">
+        <div class="class-bar" id="top-class-bar">
+            </div>
+        <button class="settings-btn" onclick="openSettings()">⚙️</button>
     </div>
 
     <div class="dock-container">
         <button class="dock-btn" data-title="計時器" onclick="toggleWidget('widget-timer')">⏳</button>
         <button class="dock-btn" data-title="小組分數" onclick="toggleWidget('widget-scores')">🏆</button>
+        <button class="dock-btn" data-title="個人加分" onclick="toggleWidget('widget-individual')">🧑‍🎓</button>
         <button class="dock-btn" data-title="作業登記" onclick="toggleWidget('widget-homework')">📋</button>
         <button class="dock-btn" data-title="上課進度" onclick="toggleWidget('widget-memo')">📖</button>
         <button class="dock-btn" data-title="常用連結" onclick="toggleWidget('widget-links')">🔗</button>
@@ -164,199 +170,264 @@
     </div>
 
     <div id="widget-scores" class="widget-window" style="left: 400px; top: 80px;">
-        <div class="window-header"><div><span class="window-title">小組競賽</span><span class="window-subtitle" id="sub-score">1 班</span></div><span class="close-btn" onclick="toggleWidget('widget-scores')">×</span></div>
+        <div class="window-header"><div><span class="window-title">小組競賽</span><span class="window-subtitle sub-cls"></span></div><span class="close-btn" onclick="toggleWidget('widget-scores')">×</span></div>
         <div class="window-content"><div class="score-grid" id="score-grid"></div><div style="text-align:center;margin-top:10px;"><button onclick="resetScores()" style="border:none;background:none;color:#999;text-decoration:underline;cursor:pointer;">本班歸零</button></div></div>
     </div>
 
-    <div id="widget-homework" class="widget-window" style="left: 30px; top: 450px;">
-        <div class="window-header"><div><span class="window-title">作業登記</span><span class="window-subtitle" id="sub-hw">1 班</span></div><span class="close-btn" onclick="toggleWidget('widget-homework')">×</span></div>
-        <div class="window-content"><div class="hw-grid" id="hw-grid"></div><div class="hw-summary" id="hw-summary"></div><div style="text-align:center;margin-top:10px;"><button onclick="resetHomework()" style="border:none;background:none;color:#999;text-decoration:underline;cursor:pointer;">本班重置</button></div></div>
-    </div>
-
-    <div id="widget-memo" class="widget-window" style="left: 400px; top: 450px;">
-        <div class="window-header"><div><span class="window-title">上課進度</span><span class="window-subtitle" id="sub-memo">1 班</span></div><span class="close-btn" onclick="toggleWidget('widget-memo')">×</span></div>
+    <div id="widget-individual" class="widget-window" style="left: 770px; top: 80px; width: 400px;">
+        <div class="window-header"><div><span class="window-title">個人加分表</span><span class="window-subtitle sub-cls"></span></div><span class="close-btn" onclick="toggleWidget('widget-individual')">×</span></div>
         <div class="window-content">
-            <textarea id="memo-text" class="memo-area" placeholder="在此輸入進度（例如：課本 P.32，下次要考單字...）" oninput="saveMemo()"></textarea>
+            <div class="ind-grid" id="ind-grid"></div>
+            <div style="text-align:center;margin-top:15px; font-size:12px; color:#888;">
+                提示：點擊綠色條加分，點擊橘色鈕扣分
+            </div>
+             <div style="text-align:center;margin-top:5px;"><button onclick="resetIndividual()" style="border:none;background:none;color:#999;text-decoration:underline;cursor:pointer;">本班全部歸零</button></div>
         </div>
     </div>
 
-    <div id="widget-links" class="widget-window" style="left: 770px; top: 80px;">
+    <div id="widget-homework" class="widget-window" style="left: 30px; top: 450px;">
+        <div class="window-header"><div><span class="window-title">作業登記</span><span class="window-subtitle sub-cls"></span></div><span class="close-btn" onclick="toggleWidget('widget-homework')">×</span></div>
+        <div class="window-content"><div class="ind-grid" id="hw-grid"></div><div class="hw-summary" id="hw-summary" style="margin-top:10px;"></div><div style="text-align:center;margin-top:10px;"><button onclick="resetHomework()" style="border:none;background:none;color:#999;text-decoration:underline;cursor:pointer;">本班重置</button></div></div>
+    </div>
+
+    <div id="widget-memo" class="widget-window" style="left: 400px; top: 450px;">
+        <div class="window-header"><div><span class="window-title">上課進度</span><span class="window-subtitle sub-cls"></span></div><span class="close-btn" onclick="toggleWidget('widget-memo')">×</span></div>
+        <div class="window-content"><textarea id="memo-text" class="memo-area" placeholder="輸入進度..." oninput="saveMemo()"></textarea></div>
+    </div>
+
+    <div id="widget-links" class="widget-window" style="left: 770px; top: 450px;">
         <div class="window-header"><span class="window-title">常用連結</span><span class="close-btn" onclick="toggleWidget('widget-links')">×</span></div>
         <div class="window-content">
-            <div class="link-input-group">
-                <input type="text" id="link-title" class="link-input" placeholder="名稱 (如: Kahoot)">
-                <input type="text" id="link-url" class="link-input" placeholder="網址 (https://...)">
-                <button class="btn-add-link" onclick="addLink()">+</button>
+            <div style="display:flex; gap:5px; margin-bottom:10px;">
+                <input type="text" id="link-title" placeholder="名稱" style="flex:1; padding:5px;">
+                <input type="text" id="link-url" placeholder="網址" style="flex:1; padding:5px;">
+                <button onclick="addLink()" style="background:#2196F3; color:white; border:none; border-radius:4px;">+</button>
             </div>
-            <div class="link-list" id="link-list">
-                </div>
-            <div style="text-align:center;margin-top:5px;font-size:12px;color:#aaa;">此清單所有班級共用</div>
+            <div id="link-list" style="max-height:250px; overflow-y:auto;"></div>
+        </div>
+    </div>
+
+    <div id="settings-modal" class="settings-overlay">
+        <div class="settings-box">
+            <h3 style="margin-top:0;">班級管理</h3>
+            <div id="class-list-edit" style="max-height:300px; overflow-y:auto;"></div>
+            <button class="btn-new-class" onclick="addNewClass()">+ 新增班級</button>
+            <button onclick="closeSettings()" style="width:100%; padding:10px; background:#ddd; border:none; border-radius:8px; margin-top:10px; cursor:pointer;">關閉</button>
         </div>
     </div>
 
     <script>
         // ==========================
-        //  系統核心 (System Core)
+        //  1. 班級管理系統 (Dynamic Class System)
         // ==========================
-        let currentClass = parseInt(localStorage.getItem('currentActiveIdx')) || 1;
-        const STUDENT_COUNT = 30;
-
-        // 初始化
-        updateClassUI();
-        loadAllData();
-        renderLinks(); // 連結是共用的，分開讀取
-
-        function switchClass(idx) {
-            currentClass = idx;
-            localStorage.setItem('currentActiveIdx', currentClass);
-            updateClassUI();
-            loadAllData(); // 重新讀取該班資料
+        // 預設資料
+        const defaultClasses = [
+            { id: 'c1', name: '1 班' }, { id: 'c2', name: '2 班' }, { id: 'c3', name: '3 班' }
+        ];
+        
+        // 讀取班級設定
+        let classes = JSON.parse(localStorage.getItem('class_config')) || defaultClasses;
+        let currentClassId = localStorage.getItem('current_class_id') || classes[0].id;
+        
+        // 如果目前紀錄的 classId 已經被刪除了，就回到第一個
+        if(!classes.find(c => c.id === currentClassId)) {
+            currentClassId = classes[0] ? classes[0].id : null;
         }
 
-        function updateClassUI() {
-            document.querySelectorAll('.class-btn').forEach((btn, i) => btn.classList.toggle('active', i+1 === currentClass));
-            ['sub-score', 'sub-hw', 'sub-memo'].forEach(id => document.getElementById(id).innerText = `${currentClass} 班`);
+        function init() {
+            renderClassBar();
+            loadAllData();
+            renderLinks();
+            // 更新視窗標題的班級名稱
+            updateSubtitles();
         }
 
-        function loadAllData() {
-            renderScores();
-            renderHomework();
-            renderMemo();
+        function renderClassBar() {
+            const bar = document.getElementById('top-class-bar');
+            bar.innerHTML = '';
+            classes.forEach(cls => {
+                const btn = document.createElement('button');
+                btn.className = `class-btn ${cls.id === currentClassId ? 'active' : ''}`;
+                btn.innerText = cls.name;
+                btn.onclick = () => switchClass(cls.id);
+                bar.appendChild(btn);
+            });
         }
 
-        // ==========================
-        //  1. 上課進度 (Memo) ★ NEW
-        // ==========================
-        function renderMemo() {
-            const key = `class_${currentClass}_memo`;
-            const text = localStorage.getItem(key) || '';
-            document.getElementById('memo-text').value = text;
+        function switchClass(id) {
+            currentClassId = id;
+            localStorage.setItem('current_class_id', id);
+            renderClassBar();
+            loadAllData();
+            updateSubtitles();
         }
 
-        function saveMemo() {
-            const key = `class_${currentClass}_memo`;
-            const text = document.getElementById('memo-text').value;
-            localStorage.setItem(key, text);
+        function updateSubtitles() {
+            const currentName = classes.find(c => c.id === currentClassId)?.name || '';
+            document.querySelectorAll('.sub-cls').forEach(el => el.innerText = currentName);
         }
 
-        // ==========================
-        //  2. 常用連結 (Links) ★ NEW
-        // ==========================
-        // 連結設為 Global (所有班級共用)，若要分班級存，將 key 加上 currentClass 即可
-        let linksData = JSON.parse(localStorage.getItem('global_links')) || [];
-
-        function renderLinks() {
-            const list = document.getElementById('link-list');
+        // --- 設定彈窗邏輯 ---
+        function openSettings() {
+            const list = document.getElementById('class-list-edit');
             list.innerHTML = '';
-            linksData.forEach((item, index) => {
+            classes.forEach((cls, index) => {
                 list.innerHTML += `
-                    <div class="link-item">
-                        <a href="${item.url}" target="_blank">🔗 ${item.title}</a>
-                        <button class="btn-del-link" onclick="deleteLink(${index})">×</button>
+                    <div class="class-list-item">
+                        <input type="text" value="${cls.name}" onchange="updateClassName('${cls.id}', this.value)">
+                        ${classes.length > 1 ? `<button class="btn-del-class" onclick="deleteClass('${cls.id}')">刪除</button>` : ''}
+                    </div>
+                `;
+            });
+            document.getElementById('settings-modal').style.display = 'flex';
+        }
+
+        function closeSettings() { document.getElementById('settings-modal').style.display = 'none'; renderClassBar(); updateSubtitles(); }
+
+        function addNewClass() {
+            const newId = 'c' + Date.now();
+            classes.push({ id: newId, name: '新班級' });
+            localStorage.setItem('class_config', JSON.stringify(classes));
+            openSettings(); // 重新渲染列表
+        }
+
+        function updateClassName(id, newName) {
+            const cls = classes.find(c => c.id === id);
+            if(cls) { cls.name = newName; localStorage.setItem('class_config', JSON.stringify(classes)); }
+        }
+
+        function deleteClass(id) {
+            if(confirm('確定刪除此班級？所有資料將消失！')) {
+                classes = classes.filter(c => c.id !== id);
+                localStorage.setItem('class_config', JSON.stringify(classes));
+                // 如果刪掉的是當前班級，切換到第一個
+                if(id === currentClassId) { switchClass(classes[0].id); }
+                openSettings();
+            }
+        }
+
+        // ==========================
+        //  2. 個人加分系統 (Individual Scores) ★ NEW
+        // ==========================
+        const STUDENT_COUNT = 35; // 預設 35 人
+        function getIndData() { return JSON.parse(localStorage.getItem(`${currentClassId}_ind_scores`)) || new Array(STUDENT_COUNT).fill(0); }
+        function saveIndData(d) { localStorage.setItem(`${currentClassId}_ind_scores`, JSON.stringify(d)); }
+
+        function renderIndividual() {
+            const grid = document.getElementById('ind-grid');
+            grid.innerHTML = '';
+            const data = getIndData();
+            data.forEach((score, i) => {
+                grid.innerHTML += `
+                    <div class="ind-card">
+                        <span class="ind-num">${i+1}</span>
+                        <div class="ind-score">${score}</div>
+                        <div class="ind-ctrl">
+                            <button class="ind-btn ind-btn-minus" onclick="modIndScore(${i}, -1)">-</button>
+                            <button class="ind-btn ind-btn-add" onclick="modIndScore(${i}, 1)">+</button>
+                        </div>
                     </div>`;
             });
         }
 
-        function addLink() {
-            const titleInput = document.getElementById('link-title');
-            const urlInput = document.getElementById('link-url');
-            let title = titleInput.value.trim();
-            let url = urlInput.value.trim();
-
-            if(!title || !url) return alert('請輸入名稱和網址');
-            if(!url.startsWith('http')) url = 'https://' + url; // 自動補上 https
-
-            linksData.push({ title, url });
-            localStorage.setItem('global_links', JSON.stringify(linksData));
-            
-            titleInput.value = ''; urlInput.value = ''; // 清空輸入框
-            renderLinks();
+        function modIndScore(idx, val) {
+            let data = getIndData();
+            data[idx] += val;
+            saveIndData(data);
+            renderIndividual();
         }
 
-        function deleteLink(index) {
-            if(confirm('確定刪除此連結？')) {
-                linksData.splice(index, 1);
-                localStorage.setItem('global_links', JSON.stringify(linksData));
-                renderLinks();
+        function resetIndividual() {
+            if(confirm('確定歸零全班個人分數？')) {
+                saveIndData(new Array(STUDENT_COUNT).fill(0));
+                renderIndividual();
             }
         }
 
         // ==========================
-        //  3. 小組分數 (Scores)
+        //  3. 其他功能 (Scores, Homework, Memo, Links)
         // ==========================
-        const defaultScores = [{ icon: '🦁', score: 0 }, { icon: '🐰', score: 0 }, { icon: '🐼', score: 0 }, { icon: '🦊', score: 0 }];
-        function getScoreData() { return JSON.parse(localStorage.getItem(`class_${currentClass}_scores`)) || JSON.parse(JSON.stringify(defaultScores)); }
-        function saveScoreData(d) { localStorage.setItem(`class_${currentClass}_scores`, JSON.stringify(d)); }
+        function loadAllData() {
+            renderScores();
+            renderIndividual();
+            renderHomework();
+            renderMemo();
+        }
+
+        // 小組
+        const defaultGroup = [{icon:'🦁',s:0},{icon:'🐰',s:0},{icon:'🐼',s:0},{icon:'🦊',s:0},{icon:'🐯',s:0},{icon:'🐸',s:0}];
         function renderScores() {
-            const grid = document.getElementById('score-grid'); grid.innerHTML = '';
-            getScoreData().forEach((g, i) => grid.innerHTML += `<div class="score-card"><span class="score-animal">${g.icon}</span><div class="score-value">${g.score}</div><div class="score-actions"><button class="btn-minus" onclick="updateScore(${i}, -1)">-</button><button class="btn-add" onclick="updateScore(${i}, 1)">+</button></div></div>`);
+            const d = JSON.parse(localStorage.getItem(`${currentClassId}_scores`)) || defaultGroup;
+            const g = document.getElementById('score-grid'); g.innerHTML='';
+            d.forEach((x,i)=> g.innerHTML+=`<div class="score-card"><span style="font-size:24px">${x.icon}</span><div class="score-value">${x.s}</div><div><button class="btn-minus" onclick="modScore(${i},-1)">-</button><button class="btn-add" onclick="modScore(${i},1)">+</button></div></div>`);
         }
-        function updateScore(i, v) { let d = getScoreData(); d[i].score = Math.max(0, d[i].score + v); saveScoreData(d); renderScores(); }
-        function resetScores() { if(confirm(`歸零 ${currentClass} 班分數？`)) { saveScoreData(JSON.parse(JSON.stringify(defaultScores))); renderScores(); }}
+        function modScore(i,v) { 
+            let d = JSON.parse(localStorage.getItem(`${currentClassId}_scores`)) || defaultGroup;
+            d[i].s = Math.max(0, d[i].s+v); localStorage.setItem(`${currentClassId}_scores`, JSON.stringify(d)); renderScores();
+        }
+        function resetScores() { localStorage.removeItem(`${currentClassId}_scores`); renderScores(); }
 
-        // ==========================
-        //  4. 作業登記 (Homework)
-        // ==========================
-        function getHWData() { return JSON.parse(localStorage.getItem(`class_${currentClass}_homework`)) || new Array(STUDENT_COUNT).fill(0); }
-        function saveHWData(d) { localStorage.setItem(`class_${currentClass}_homework`, JSON.stringify(d)); }
+        // 作業
         function renderHomework() {
-            const grid = document.getElementById('hw-grid'); grid.innerHTML = ''; let done=0, miss=0;
-            getHWData().forEach((s, i) => {
-                let c = s===1 ? 'status-done' : (s===2 ? 'status-missing' : '');
-                if(s===1) done++; if(s===2) miss++;
-                grid.innerHTML += `<div class="student-circle ${c}" onclick="toggleHW(${i})">${i+1}</div>`;
+            const d = JSON.parse(localStorage.getItem(`${currentClassId}_hw`)) || new Array(STUDENT_COUNT).fill(0);
+            const g = document.getElementById('hw-grid'); g.innerHTML=''; let done=0,miss=0;
+            d.forEach((s,i)=>{
+                let color = s===0?'#f0f0f0':(s===1?'#4CAF50':'#ff5252');
+                let tColor = s===0?'#666':'white';
+                g.innerHTML+=`<div style="background:${color};color:${tColor};width:100%;height:40px;border-radius:5px;display:flex;justify-content:center;align-items:center;font-weight:bold;cursor:pointer;border:1px solid #ddd;" onclick="toggleHw(${i})">${i+1}</div>`;
+                if(s===1)done++;if(s===2)miss++;
             });
-            document.getElementById('hw-summary').innerHTML = `${currentClass}班: 已交 <b>${done}</b> | <span style="color:red">缺交 <b>${miss}</b></span>`;
+            document.getElementById('hw-summary').innerHTML = `已交: <b>${done}</b> | 缺交: <b style="color:red">${miss}</b>`;
         }
-        function toggleHW(i) { let d = getHWData(); d[i] = (d[i]+1)%3; saveHWData(d); renderHomework(); }
-        function resetHomework() { if(confirm(`重置 ${currentClass} 班作業？`)) { saveHWData(new Array(STUDENT_COUNT).fill(0)); renderHomework(); }}
+        function toggleHw(i){ let d=JSON.parse(localStorage.getItem(`${currentClassId}_hw`))||new Array(STUDENT_COUNT).fill(0); d[i]=(d[i]+1)%3; localStorage.setItem(`${currentClassId}_hw`, JSON.stringify(d)); renderHomework(); }
+        function resetHomework(){ if(confirm('重置作業？')){localStorage.removeItem(`${currentClassId}_hw`); renderHomework();} }
 
-        // ==========================
-        //  5. 計時器 (Timer)
-        // ==========================
-        let tMode = 'countdown', tRem = 300, tStop = 0, tInt = null, isRun = false;
-        function switchTimerMode(m) {
-            tMode = m; isRun = false; clearInterval(tInt);
-            document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active')); event.target.classList.add('active');
-            document.getElementById('play-btn').innerText = '▶'; document.getElementById('play-btn').className = 'control-btn btn-play'; document.getElementById('timer-text').classList.remove('red-alert');
-            document.getElementById('preset-area').style.display = m==='countdown'?'grid':'none';
-            updateTimeDisplay(m==='countdown'?tRem:tStop);
-        }
-        function updateTimeDisplay(s) { document.getElementById('timer-text').innerText = `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`; }
-        function toggleTimer() {
-            const btn = document.getElementById('play-btn');
-            if(isRun) { clearInterval(tInt); isRun=false; btn.innerText='▶'; btn.className='control-btn btn-play'; }
-            else {
-                isRun=true; btn.innerText='⏸'; btn.className='control-btn btn-pause';
-                tInt = setInterval(() => {
-                    if(tMode==='countdown') { if(tRem>0) { tRem--; updateTimeDisplay(tRem); } else { timeUp(); } }
-                    else { tStop++; updateTimeDisplay(tStop); }
-                }, 1000);
-            }
-        }
-        function resetTimer() { clearInterval(tInt); isRun=false; document.getElementById('play-btn').innerText='▶'; document.getElementById('play-btn').className='control-btn btn-play'; document.getElementById('timer-text').classList.remove('red-alert'); if(tMode==='countdown') { tRem=300; updateTimeDisplay(tRem); } else { tStop=0; updateTimeDisplay(0); } }
-        function addTime(s) { if(tMode==='countdown') { tRem+=s; updateTimeDisplay(tRem); } }
-        function timeUp() { clearInterval(tInt); isRun=false; document.getElementById('play-btn').innerText='▶'; document.getElementById('play-btn').className='control-btn btn-play'; document.getElementById('timer-text').classList.add('red-alert'); playBeep(); }
-        function playBeep() {
-            const A = window.AudioContext || window.webkitAudioContext; if(!A) return; const c = new A(), o = c.createOscillator(), g = c.createGain();
-            o.type='sine'; o.frequency.setValueAtTime(880, c.currentTime); g.gain.setValueAtTime(0.5, c.currentTime); g.gain.exponentialRampToValueAtTime(0.01, c.currentTime+0.5);
-            o.connect(g); g.connect(c.destination); o.start(); o.stop(c.currentTime+0.5);
-        }
+        // 備忘
+        function renderMemo() { document.getElementById('memo-text').value = localStorage.getItem(`${currentClassId}_memo`) || ''; }
+        function saveMemo() { localStorage.setItem(`${currentClassId}_memo`, document.getElementById('memo-text').value); }
 
-        // ==========================
-        //  視窗拖曳 (Draggable)
-        // ==========================
-        let zC = 100;
-        document.querySelectorAll('.widget-window').forEach(el => {
-            const h = el.querySelector('.window-header'); let isD=false, sX, sY, iL, iT;
-            const start = (e) => { el.style.zIndex = ++zC; const t = e.touches?e.touches[0]:e; isD=true; sX=t.clientX; sY=t.clientY; iL=el.offsetLeft; iT=el.offsetTop; };
-            const move = (e) => { if(!isD)return; e.preventDefault(); const t = e.touches?e.touches[0]:e; el.style.left = `${iL+(t.clientX-sX)}px`; el.style.top = `${iT+(t.clientY-sY)}px`; };
-            const end = () => isD=false;
-            h.addEventListener("mousedown", start); h.addEventListener("touchstart", start, {passive:false});
-            document.addEventListener("mousemove", move); document.addEventListener("touchmove", move, {passive:false});
-            document.addEventListener("mouseup", end); document.addEventListener("touchend", end);
+        // 連結 (共用)
+        let links = JSON.parse(localStorage.getItem('shared_links')) || [];
+        function renderLinks() {
+            const l = document.getElementById('link-list'); l.innerHTML='';
+            links.forEach((x,i)=> l.innerHTML+=`<div class="link-item"><a href="${x.url}" target="_blank">🔗 ${x.title}</a><button class="btn-del-link" onclick="delLink(${i})">×</button></div>`);
+        }
+        function addLink() {
+            let t = document.getElementById('link-title').value, u = document.getElementById('link-url').value;
+            if(t&&u) { if(!u.startsWith('http'))u='https://'+u; links.push({title:t,url:u}); localStorage.setItem('shared_links', JSON.stringify(links)); renderLinks(); document.getElementById('link-title').value=''; document.getElementById('link-url').value=''; }
+        }
+        function delLink(i) { if(confirm('刪除？')){links.splice(i,1); localStorage.setItem('shared_links', JSON.stringify(links)); renderLinks();} }
+
+        // 計時器 (邏輯同前)
+        let tMode='countdown', tVal=300, tInt=null, isRun=false;
+        function switchTimerMode(m){tMode=m;resetTimer();document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));event.target.classList.add('active'); document.getElementById('preset-area').style.display=m==='countdown'?'grid':'none';}
+        function updateTime(s){document.getElementById('timer-text').innerText=`${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`;}
+        function toggleTimer(){
+            const btn=document.getElementById('play-btn');
+            if(isRun){clearInterval(tInt);isRun=false;btn.innerText='▶';btn.className='control-btn btn-play';}
+            else{isRun=true;btn.innerText='⏸';btn.className='control-btn btn-pause';tInt=setInterval(()=>{
+                if(tMode==='countdown'){if(tVal>0){tVal--;updateTime(tVal);}else{playBeep();clearInterval(tInt);document.getElementById('timer-text').classList.add('red-alert');}}
+                else{tVal++;updateTime(tVal);}
+            },1000);}
+        }
+        function resetTimer(){clearInterval(tInt);isRun=false;tVal=tMode==='countdown'?300:0;updateTime(tVal);document.getElementById('timer-text').classList.remove('red-alert');document.getElementById('play-btn').innerText='▶';document.getElementById('play-btn').className='control-btn btn-play';}
+        function addTime(s){if(tMode==='countdown'){tVal+=s;updateTime(tVal);}}
+        function playBeep(){const A=window.AudioContext||window.webkitAudioContext;if(A){const c=new A(),o=c.createOscillator(),g=c.createGain();o.connect(g);g.connect(c.destination);o.start();o.stop(c.currentTime+0.5);}}
+
+        // 拖曳功能
+        let zC=100;
+        document.querySelectorAll('.widget-window').forEach(w=>{
+            const h=w.querySelector('.window-header'); let d=false,x,y,l,t;
+            const s=(e)=>{w.style.zIndex=++zC;const p=e.touches?e.touches[0]:e;d=true;x=p.clientX;y=p.clientY;l=w.offsetLeft;t=w.offsetTop;};
+            const m=(e)=>{if(!d)return;e.preventDefault();const p=e.touches?e.touches[0]:e;w.style.left=(l+p.clientX-x)+'px';w.style.top=(t+p.clientY-y)+'px';};
+            const e=()=>d=false;
+            h.addEventListener('mousedown',s);h.addEventListener('touchstart',s,{passive:false});
+            document.addEventListener('mousemove',m);document.addEventListener('touchmove',m,{passive:false});
+            document.addEventListener('mouseup',e);document.addEventListener('touchend',e);
         });
-        function toggleWidget(id) { const el = document.getElementById(id); if(el.style.display==='flex') el.style.display='none'; else { el.style.display='flex'; el.style.zIndex=++zC; } }
+        function toggleWidget(id){const e=document.getElementById(id);if(e.style.display==='flex')e.style.display='none';else{e.style.display='flex';e.style.zIndex=++zC;}}
+
+        init();
     </script>
 </body>
 </html>
