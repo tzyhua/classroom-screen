@@ -1,0 +1,689 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>作業繳交紀錄系統 v8.0</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        /* 使用 Inter 字體以獲得現代感 */
+        body { font-family: 'Inter', '微軟正黑體', sans-serif; background-color: #f8f9fa; overscroll-behavior: none; }
+        
+        /* Macaron Color Palette */
+        .color-submitted { background-color: #C8E6C9; color: #1E4620; } /* Mint Green */
+        .color-late { background-color: #FFECB3; color: #6D4C41; }      /* Light Yellow */
+        .color-missing { background-color: #FFCDD2; color: #C62828; }    /* Light Pink */
+        .color-base { background-color: #F8F9FA; color: #424242; border: 1px solid #E0E0E0; }
+
+        /* 視窗通用樣式 */
+        .widget-window {
+            position: absolute; min-width: 380px; max-width: 90vw;
+            background: rgba(255, 255, 255, 0.98); backdrop-filter: blur(5px);
+            border-radius: 20px; box-shadow: 0 15px 40px rgba(0,0,0,0.2);
+            display: none; flex-direction: column; overflow: hidden;
+            z-index: 100; transition: all 0.2s;
+        }
+
+        /* Dock (底部工具列) */
+        .dock-container {
+            position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+            background: rgba(255, 255, 255, 0.5); backdrop-filter: blur(12px);
+            padding: 12px 24px; border-radius: 24px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.2); z-index: 100;
+        }
+        .dock-btn {
+            width: 55px; height: 55px; border: none; background: white;
+            border-radius: 14px; font-size: 26px; cursor: pointer;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1); transition: transform 0.1s;
+        }
+        .dock-btn:active { transform: scale(0.9); }
+
+        /* 頂部班級列 */
+        .class-bar {
+            background: rgba(255, 255, 255, 0.9); backdrop-filter: blur(8px);
+            padding: 8px 15px; border-radius: 50px; display: flex; gap: 8px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.15); max-width: 90%; overflow-x: auto; white-space: nowrap;
+        }
+        .class-bar::-webkit-scrollbar { display: none; }
+        .class-btn {
+            padding: 8px 16px; border-radius: 20px; font-weight: bold; cursor: pointer; flex-shrink: 0;
+            transition: all 0.2s; background: transparent; border: none;
+        }
+        .class-btn.active { background: #A7C7E7; color: white; box-shadow: 0 2px 8px rgba(167, 199, 231, 0.5); }
+        .settings-btn { width: 36px; height: 36px; border-radius: 50%; }
+
+        /* 作業方格 */
+        .student-square {
+            display: flex; flex-direction: column; align-items: center; justify-content: center;
+            height: 80px; border-radius: 12px; font-size: 18px; font-weight: bold; cursor: pointer;
+            transition: all 0.1s; user-select: none;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .student-square:hover { transform: translateY(-2px); box-shadow: 0 4px 6px rgba(0,0,0,0.15); }
+
+        /* 統計結果 */
+        .stat-badge {
+            padding: 8px 15px; border-radius: 10px; font-weight: bold; font-size: 16px;
+            display: inline-flex; align-items: center; gap: 5px;
+        }
+        .stat-submitted { background-color: #E8F5E9; color: #388E3C; }
+        .stat-late { background-color: #FFFDE7; color: #FFA000; }
+        .stat-missing { background-color: #FFEBEE; color: #D32F2F; }
+
+        /* 輸入欄位 */
+        input[type="text"], input[type="date"], select, textarea {
+            border: 1px solid #ddd; padding: 10px; border-radius: 8px; font-size: 16px;
+            transition: border-color 0.2s;
+        }
+        input:focus, select:focus, textarea:focus {
+            border-color: #A7C7E7; outline: none; box-shadow: 0 0 0 2px rgba(167, 199, 231, 0.3);
+        }
+
+    </style>
+</head>
+<body class="bg-gray-100">
+
+    <!-- 背景圖層 -->
+    <div id="bg-layer" class="fixed inset-0 bg-cover bg-center -z-10" style="background-image: url('https://images.unsplash.com/photo-1541462628461-12563f46f417?q=80&w=1920&auto=format&fit=crop');"></div>
+
+    <!-- 頂部班級列 -->
+    <div class="fixed top-5 left-0 w-full flex justify-center items-center z-50">
+        <div class="class-bar" id="top-class-bar"></div>
+        <button class="settings-btn bg-gray-200 ml-4 hover:bg-gray-300 transition-colors" onclick="openSettings()">⚙️</button>
+    </div>
+
+    <!-- 底部 Dock -->
+    <div class="dock-container">
+        <button class="dock-btn" data-title="作業紀錄" onclick="toggleWidget('widget-assignment')">📝</button>
+        <button class="dock-btn" data-title="計時器" onclick="toggleWidget('widget-timer')">⏳</button>
+        <button class="dock-btn" data-title="小組分數" onclick="toggleWidget('widget-scores')">🏆</button>
+        <button class="dock-btn" data-title="上課備忘" onclick="toggleWidget('widget-memo')">📖</button>
+        <button class="dock-btn" data-title="常用連結" onclick="toggleWidget('widget-links')">🔗</button>
+    </div>
+
+    <!-- NEW: 作業繳交紀錄 (Assignment Widget) -->
+    <div id="widget-assignment" class="widget-window top-24 left-1/2 -translate-x-1/2 w-[900px] max-w-[95vw]">
+        <div class="window-header p-4 bg-blue-50 rounded-t-[20px] cursor-move flex justify-between items-center text-blue-800" onmousedown="startDrag(event, 'widget-assignment')" ontouchstart="startDrag(event, 'widget-assignment')">
+            <h2 class="text-xl font-bold"><span class="sub-cls-name"></span> - 作業繳交紀錄</h2>
+            <button class="close-btn w-6 h-6 bg-red-500 rounded-full text-white text-base leading-none" onclick="toggleWidget('widget-assignment')">×</button>
+        </div>
+
+        <div class="p-5 overflow-y-auto">
+            <!-- 紀錄抬頭 -->
+            <div class="grid grid-cols-4 gap-4 mb-6 p-4 bg-white rounded-xl shadow-lg">
+                <div><label class="block text-sm font-medium mb-1">日期</label><input type="date" id="meta-date" class="w-full" onchange="saveMeta()"></div>
+                <div><label class="block text-sm font-medium mb-1">科目</label><input type="text" id="meta-subject" class="w-full" placeholder="例如：數學" oninput="saveMeta()"></div>
+                <div><label class="block text-sm font-medium mb-1">作業名稱</label><input type="text" id="meta-assignment" class="w-full" placeholder="例如：P.10 習題" oninput="saveMeta()"></div>
+                <div><label class="block text-sm font-medium mb-1">教師</label><input type="text" id="meta-teacher" class="w-full" placeholder="例如：王老師" oninput="saveMeta()"></div>
+            </div>
+
+            <!-- 學生範圍設定與檔案操作 -->
+            <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6 p-4 bg-white rounded-xl shadow-lg border-t-4 border-[#A7C7E7]">
+                <div class="col-span-1 md:col-span-3 grid grid-cols-3 gap-3 items-end">
+                    <div><label class="block text-sm font-medium mb-1">座號起點</label><input type="number" id="config-start" class="w-full" value="1" min="1" onchange="updateConfig()"></div>
+                    <div><label class="block text-sm font-medium mb-1">座號終點</label><input type="number" id="config-end" class="w-full" value="25" min="1" onchange="updateConfig()"></div>
+                    <div><label class="block text-sm font-medium mb-1">排除座號 (逗號分隔)</label><input type="text" id="config-exclude" class="w-full" placeholder="例如：3, 15" onchange="updateConfig()"></div>
+                </div>
+
+                <div class="col-span-1 md:col-span-1 flex flex-col gap-2">
+                    <label class="block text-sm font-medium">學生名單 (.csv)</label>
+                    <input type="file" id="student-csv-upload" accept=".csv" onchange="handleCSVUpload(event)" class="text-sm">
+                    <button class="bg-indigo-500 text-white p-2 rounded-lg text-sm hover:bg-indigo-600" onclick="downloadResults()">下載紀錄結果 (.csv)</button>
+                </div>
+            </div>
+
+            <!-- 統計結果 -->
+            <div class="flex flex-wrap gap-4 mb-6 p-4 bg-white rounded-xl shadow-lg border-t-4 border-[#FFECB3]">
+                <div class="stat-badge stat-submitted">
+                    <span class="text-xl">✅</span> 繳交人數：<span id="stat-submitted-count">0</span>
+                </div>
+                <div class="stat-badge stat-late">
+                    <span class="text-xl">⚠️</span> 遲交人數：<span id="stat-late-count">0</span>
+                </div>
+                <div class="stat-badge stat-missing">
+                    <span class="text-xl">❌</span> 缺交總數：<span id="stat-missing-count">0</span> / <span id="stat-total-count">0</span>
+                </div>
+                <div class="stat-badge bg-gray-100 text-gray-700">
+                    座號：<span id="stat-missing-seats" class="font-normal text-sm">無</span>
+                </div>
+                <div class="stat-badge bg-gray-100 text-gray-700">
+                    遲交座號：<span id="stat-late-seats" class="font-normal text-sm">無</span>
+                </div>
+            </div>
+
+            <!-- 學生方格區 -->
+            <div id="student-grid-container" class="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-3 p-4 bg-white rounded-xl shadow-lg border-t-4 border-[#C8E6C9]">
+                <!-- 學生方格將由 JavaScript 渲染 -->
+            </div>
+        </div>
+    </div>
+
+    <!-- 彈窗群組 (其他功能) -->
+    
+    <!-- 1. 計時器 (Timer) -->
+    <div id="widget-timer" class="widget-window top-24 left-10 w-[300px]">
+        <div class="window-header p-4 cursor-move bg-gray-100 rounded-t-[20px]" onmousedown="startDrag(event, 'widget-timer')" ontouchstart="startDrag(event, 'widget-timer')">
+            <h2 class="text-xl font-bold text-gray-700">計時器</h2>
+            <button class="close-btn bg-red-500" onclick="toggleWidget('widget-timer')">×</button>
+        </div>
+        <div class="p-5">
+            <div class="flex bg-gray-100 rounded-xl p-1 mb-4"><button class="tab-btn flex-1 p-2 rounded-lg font-bold text-gray-600 transition-colors active" onclick="switchTimerMode('countdown')">倒數</button><button class="tab-btn flex-1 p-2 rounded-lg font-bold text-gray-600 transition-colors" onclick="switchTimerMode('stopwatch')">正數</button></div>
+            <div class="text-6xl font-extrabold text-center my-4" id="timer-text">05:00</div>
+            <div class="flex justify-center gap-4 mb-4">
+                <button class="control-btn w-12 h-12 rounded-full bg-gray-200 text-gray-600 text-xl" onclick="resetTimer()">↺</button>
+                <button class="control-btn w-12 h-12 rounded-full bg-green-500 text-white text-xl" id="play-btn" onclick="toggleTimer()">▶</button>
+            </div>
+            <!-- 優化後的計時器加減按鈕 -->
+            <div class="grid grid-cols-3 gap-2" id="preset-area">
+                <button class="preset-btn bg-blue-100 text-blue-800 p-2 rounded-lg font-semibold" onclick="modTime(-60)">-1 分</button>
+                <button class="preset-btn bg-blue-100 text-blue-800 p-2 rounded-lg font-semibold" onclick="modTime(60)">+1 分</button>
+                <button class="preset-btn bg-blue-100 text-blue-800 p-2 rounded-lg font-semibold" onclick="modTime(300)">+5 分</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2. 小組分數 (Scores) - 待實作，僅作佔位 -->
+    <div id="widget-scores" class="widget-window top-24 right-10 w-[300px]">
+        <div class="window-header p-4 cursor-move bg-gray-100 rounded-t-[20px]" onmousedown="startDrag(event, 'widget-scores')" ontouchstart="startDrag(event, 'widget-scores')">
+            <h2 class="text-xl font-bold text-gray-700">小組競賽 <span class="text-sm font-normal text-blue-500 sub-cls-name"></span></h2>
+            <button class="close-btn bg-red-500" onclick="toggleWidget('widget-scores')">×</button>
+        </div>
+        <div class="p-5 text-center">
+            <p class="text-gray-500">小組分數功能預留</p>
+        </div>
+    </div>
+
+    <!-- 3. 上課備忘 (Memo) - 待實作，僅作佔位 -->
+    <div id="widget-memo" class="widget-window bottom-24 left-10 w-[300px]">
+        <div class="window-header p-4 cursor-move bg-gray-100 rounded-t-[20px]" onmousedown="startDrag(event, 'widget-memo')" ontouchstart="startDrag(event, 'widget-memo')">
+            <h2 class="text-xl font-bold text-gray-700">上課備忘 <span class="text-sm font-normal text-blue-500 sub-cls-name"></span></h2>
+            <button class="close-btn bg-red-500" onclick="toggleWidget('widget-memo')">×</button>
+        </div>
+        <div class="p-5">
+            <textarea id="memo-text" class="w-full h-32 p-3 border rounded-lg" placeholder="輸入課程進度或注意事項..." oninput="saveMemo()"></textarea>
+        </div>
+    </div>
+
+    <!-- 4. 常用連結 (Links) - 待實作，僅作佔位 -->
+    <div id="widget-links" class="widget-window bottom-24 right-10 w-[300px]">
+        <div class="window-header p-4 cursor-move bg-gray-100 rounded-t-[20px]" onmousedown="startDrag(event, 'widget-links')" ontouchstart="startDrag(event, 'widget-links')">
+            <h2 class="text-xl font-bold text-gray-700">常用連結</h2>
+            <button class="close-btn bg-red-500" onclick="toggleWidget('widget-links')">×</button>
+        </div>
+        <div class="p-5 text-center">
+            <p class="text-gray-500">常用連結功能預留</p>
+        </div>
+    </div>
+
+    <!-- 設定彈窗 (Settings Modal) -->
+    <div id="settings-modal" class="fixed inset-0 bg-black bg-opacity-50 z-[9999] hidden justify-center items-center">
+        <div class="bg-white p-6 rounded-2xl shadow-2xl w-96">
+            <h3 class="text-2xl font-bold mb-4 text-gray-800">班級管理</h3>
+            <div id="class-list-edit" class="max-h-80 overflow-y-auto mb-4 border rounded-lg p-2"></div>
+            <button class="w-full py-2 bg-blue-500 text-white rounded-lg font-semibold hover:bg-blue-600 transition-colors" onclick="addNewClass()">+ 新增班級</button>
+            <button class="w-full py-2 mt-3 bg-gray-300 text-gray-800 rounded-lg font-semibold hover:bg-gray-400 transition-colors" onclick="closeSettings()">關閉</button>
+        </div>
+    </div>
+
+
+    <script>
+        // ===================================
+        //  1. 系統核心與數據管理 (Core & Data)
+        // ===================================
+        
+        const DEFAULT_STUDENT_COUNT = 25;
+        const HOMEWORK_STATUS = ['color-missing', 'color-submitted', 'color-late'];
+        const HOMEWORK_TEXT = ['未交', '有交', '遲交'];
+        
+        // 班級配置 (v7.0 結構)
+        let classes = JSON.parse(localStorage.getItem('class_config')) || [{ id: 'c1', name: '一年一班' }];
+        let currentClassId = localStorage.getItem('current_class_id') || classes[0].id;
+        
+        // 確保當前 ClassId 存在
+        if (!classes.find(c => c.id === currentClassId)) {
+            currentClassId = classes[0] ? classes[0].id : null;
+        }
+
+        // 數據結構：紀錄所有與作業相關的狀態
+        function getHomeworkData() {
+            const key = `${currentClassId}_assignment_data`;
+            const defaultData = {
+                meta: { date: new Date().toISOString().substring(0, 10), subject: '', assignment: '', teacher: '' },
+                config: { start: 1, end: DEFAULT_STUDENT_COUNT, exclude: [] },
+                // 狀態陣列，index 0 對應座號 start
+                status: new Array(DEFAULT_STUDENT_COUNT).fill(0), // 0:Missing, 1:Submitted, 2:Late
+                names: new Array(DEFAULT_STUDENT_COUNT).fill('') // 學生姓名 (可選)
+            };
+            const data = JSON.parse(localStorage.getItem(key)) || defaultData;
+            // 確保 status 陣列長度至少達到 end - start + 1
+            const requiredLength = data.config.end - data.config.start + 1;
+            if (data.status.length < requiredLength) {
+                data.status = data.status.concat(new Array(requiredLength - data.status.length).fill(0));
+            }
+            if (data.names.length < requiredLength) {
+                data.names = data.names.concat(new Array(requiredLength - data.names.length).fill(''));
+            }
+            return data;
+        }
+
+        function saveHomeworkData(data) {
+            localStorage.setItem(`${currentClassId}_assignment_data`, JSON.stringify(data));
+        }
+
+        // ===================================
+        //  2. 班級管理功能 (Class Management)
+        // ===================================
+
+        function initClass() {
+            renderClassBar();
+            loadAssignmentData();
+        }
+
+        function switchClass(id) {
+            currentClassId = id;
+            localStorage.setItem('current_class_id', id);
+            renderClassBar();
+            loadAssignmentData(); // 重新載入新班級資料
+        }
+
+        function renderClassBar() {
+            const bar = document.getElementById('top-class-bar');
+            bar.innerHTML = '';
+            classes.forEach(cls => {
+                const btn = document.createElement('button');
+                btn.className = `class-btn ${cls.id === currentClassId ? 'active' : ''}`;
+                btn.innerText = cls.name;
+                btn.onclick = () => switchClass(cls.id);
+                bar.appendChild(btn);
+            });
+            updateSubtitles();
+        }
+
+        function updateSubtitles() {
+            const currentName = classes.find(c => c.id === currentClassId)?.name || '';
+            document.querySelectorAll('.sub-cls-name').forEach(el => el.innerText = currentName);
+        }
+
+        // 設定彈窗
+        function openSettings() {
+            const list = document.getElementById('class-list-edit');
+            list.innerHTML = '';
+            classes.forEach(cls => {
+                list.innerHTML += `
+                    <div class="flex justify-between items-center py-2">
+                        <input type="text" value="${cls.name}" class="p-2 border rounded-lg flex-grow mr-2" onchange="updateClassName('${cls.id}', this.value)">
+                        ${classes.length > 1 ? `<button class="text-red-500 font-bold hover:text-red-700" onclick="deleteClass('${cls.id}')">刪除</button>` : ''}
+                    </div>
+                `;
+            });
+            document.getElementById('settings-modal').classList.remove('hidden');
+            document.getElementById('settings-modal').classList.add('flex');
+        }
+
+        function closeSettings() { 
+            document.getElementById('settings-modal').classList.add('hidden');
+            document.getElementById('settings-modal').classList.remove('flex');
+            renderClassBar(); 
+        }
+
+        function addNewClass() {
+            const newId = 'c' + Date.now();
+            classes.push({ id: newId, name: '新班級' });
+            localStorage.setItem('class_config', JSON.stringify(classes));
+            openSettings(); 
+        }
+
+        function updateClassName(id, newName) {
+            const cls = classes.find(c => c.id === id);
+            if(cls) { 
+                cls.name = newName.trim() || '未命名班級'; 
+                localStorage.setItem('class_config', JSON.stringify(classes)); 
+            }
+        }
+
+        function deleteClass(id) {
+            if(confirm('確定刪除此班級？該班的所有作業紀錄將會消失！')) {
+                classes = classes.filter(c => c.id !== id);
+                localStorage.setItem('class_config', JSON.JSON.stringify(classes));
+                localStorage.removeItem(`${id}_assignment_data`); // 刪除資料
+                
+                if(id === currentClassId) { 
+                    currentClassId = classes[0] ? classes[0].id : null;
+                    localStorage.setItem('current_class_id', currentClassId);
+                }
+                openSettings();
+                if (currentClassId) loadAssignmentData();
+            }
+        }
+
+        // ===================================
+        //  3. 作業紀錄主功能 (Assignment Logic)
+        // ===================================
+
+        function loadAssignmentData() {
+            const data = getHomeworkData();
+            
+            // 載入抬頭
+            document.getElementById('meta-date').value = data.meta.date || '';
+            document.getElementById('meta-subject').value = data.meta.subject || '';
+            document.getElementById('meta-assignment').value = data.meta.assignment || '';
+            document.getElementById('meta-teacher').value = data.meta.teacher || '';
+
+            // 載入配置
+            document.getElementById('config-start').value = data.config.start;
+            document.getElementById('config-end').value = data.config.end;
+            document.getElementById('config-exclude').value = data.config.exclude.join(', ');
+
+            renderStudentGrid(data);
+            updateStatistics(data);
+        }
+        
+        function saveMeta() {
+            const data = getHomeworkData();
+            data.meta.date = document.getElementById('meta-date').value;
+            data.meta.subject = document.getElementById('meta-subject').value;
+            data.meta.assignment = document.getElementById('meta-assignment').value;
+            data.meta.teacher = document.getElementById('meta-teacher').value;
+            saveHomeworkData(data);
+        }
+
+        function updateConfig() {
+            const data = getHomeworkData();
+            const start = parseInt(document.getElementById('config-start').value) || 1;
+            const end = parseInt(document.getElementById('config-end').value) || 1;
+            const excludeStr = document.getElementById('config-exclude').value.trim();
+            const exclude = excludeStr ? excludeStr.split(',').map(n => parseInt(n.trim())).filter(n => !isNaN(n) && n >= start && n <= end) : [];
+
+            // 確保合理範圍
+            if (start > end) {
+                alert('座號起點不能大於座號終點！');
+                document.getElementById('config-start').value = data.config.start;
+                document.getElementById('config-end').value = data.config.end;
+                return;
+            }
+
+            data.config.start = start;
+            data.config.end = end;
+            data.config.exclude = exclude;
+            
+            // 調整 status 和 names 陣列長度以匹配新的範圍
+            const requiredLength = end - start + 1;
+            if (data.status.length > requiredLength) {
+                data.status.length = requiredLength;
+                data.names.length = requiredLength;
+            } else if (data.status.length < requiredLength) {
+                const diff = requiredLength - data.status.length;
+                data.status = data.status.concat(new Array(diff).fill(0));
+                data.names = data.names.concat(new Array(diff).fill(''));
+            }
+
+            saveHomeworkData(data);
+            renderStudentGrid(data);
+            updateStatistics(data);
+        }
+
+        function renderStudentGrid(data) {
+            const grid = document.getElementById('student-grid-container');
+            grid.innerHTML = '';
+            
+            const { start, end, exclude } = data.config;
+            
+            for (let seat = start; seat <= end; seat++) {
+                if (exclude.includes(seat)) continue;
+
+                const index = seat - start;
+                const status = data.status[index];
+                const name = data.names[index];
+                
+                const statusClass = HOMEWORK_STATUS[status];
+                const statusText = HOMEWORK_TEXT[status];
+                const nameDisplay = name ? `<span class="text-xs font-normal text-gray-700">${name}</span>` : '';
+
+                grid.innerHTML += `
+                    <div class="student-square ${statusClass}" 
+                         data-seat="${seat}" 
+                         data-index="${index}"
+                         onclick="toggleStatus(${index})">
+                        <span class="text-2xl">${seat} 號</span>
+                        ${nameDisplay}
+                        <span class="text-sm font-light">${statusText}</span>
+                    </div>
+                `;
+            }
+        }
+
+        function toggleStatus(index) {
+            const data = getHomeworkData();
+            // 0 -> 1 (Missing -> Submitted) -> 2 (Late) -> 0
+            data.status[index] = (data.status[index] + 1) % 3;
+            
+            saveHomeworkData(data);
+            renderStudentGrid(data); // 重新渲染整個網格以更新顏色和文字
+            updateStatistics(data);
+        }
+
+        function updateStatistics(data) {
+            let submitted = 0;
+            let late = 0;
+            let missing = 0;
+            let total = 0;
+            let missingSeats = [];
+            let lateSeats = [];
+
+            const { start, end, exclude } = data.config;
+            
+            for (let seat = start; seat <= end; seat++) {
+                if (exclude.includes(seat)) continue;
+                
+                const index = seat - start;
+                const status = data.status[index];
+                total++;
+
+                if (status === 1) {
+                    submitted++;
+                } else if (status === 2) {
+                    late++;
+                    lateSeats.push(seat);
+                } else {
+                    missing++;
+                    missingSeats.push(seat);
+                }
+            }
+
+            document.getElementById('stat-submitted-count').innerText = submitted;
+            document.getElementById('stat-late-count').innerText = late;
+            document.getElementById('stat-missing-count').innerText = missing;
+            document.getElementById('stat-total-count').innerText = total;
+            document.getElementById('stat-missing-seats').innerText = missingSeats.length ? missingSeats.join(', ') : '無';
+            document.getElementById('stat-late-seats').innerText = lateSeats.length ? lateSeats.join(', ') : '無';
+        }
+
+        // ===================================
+        //  4. 檔案操作 (File I/O)
+        // ===================================
+
+        function handleCSVUpload(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const csv = e.target.result;
+                const lines = csv.split('\n').filter(line => line.trim() !== '');
+                const data = getHomeworkData();
+                const names = [];
+                
+                // 假設 CSV 格式為：座號, 姓名
+                // 且座號是第一欄，姓名是第二欄
+                lines.forEach(line => {
+                    const parts = line.split(',').map(p => p.trim());
+                    const seat = parseInt(parts[0]);
+                    const name = parts[1] || '';
+                    
+                    if (!isNaN(seat) && seat >= data.config.start && seat <= data.config.end) {
+                        const index = seat - data.config.start;
+                        names[index] = name;
+                    }
+                });
+
+                // 將讀取到的名稱合併到現有數據中
+                for(let i = 0; i < names.length; i++) {
+                    if (names[i]) {
+                         data.names[i] = names[i];
+                    } else if (!data.names[i] && i + data.config.start <= data.config.end) {
+                        // 如果 CSV 沒有提供，就清空
+                        data.names[i] = ''; 
+                    }
+                }
+                
+                saveHomeworkData(data);
+                loadAssignmentData();
+                alert(`已成功匯入 ${names.filter(n => n).length} 筆學生名單。`);
+            };
+            reader.readAsText(file);
+        }
+
+        function downloadResults() {
+            const data = getHomeworkData();
+            const { start, end, exclude } = data.config;
+            
+            const header = `班級,日期,科目,作業名稱,教師,座號,姓名,繳交狀態\n`;
+            let csvContent = header;
+
+            const currentClassName = classes.find(c => c.id === currentClassId)?.name || '未知班級';
+            const meta = `${currentClassName},${data.meta.date},${data.meta.subject},${data.meta.assignment},${data.meta.teacher}`;
+            
+            for (let seat = start; seat <= end; seat++) {
+                if (exclude.includes(seat)) continue;
+
+                const index = seat - start;
+                const status = data.status[index];
+                const name = data.names[index] || '';
+                const statusText = HOMEWORK_TEXT[status];
+
+                csvContent += `${meta},${seat},"${name.replace(/"/g, '""')}",${statusText}\n`;
+            }
+
+            const blob = new Blob([new Uint8Array([0xEF, 0xBB, 0xBF]), csvContent], { type: 'text/csv;charset=utf-8;' }); // 加上 BOM 以支援 Excel 中文
+            const filename = `${data.meta.date}_${currentClassName}_${data.meta.assignment || '作業紀錄'}.csv`;
+            
+            const link = document.createElement('a');
+            if (link.download !== undefined) {
+                const url = URL.createObjectURL(blob);
+                link.setAttribute('href', url);
+                link.setAttribute('download', filename);
+                link.style.visibility = 'hidden';
+                document.body.appendChild(link);
+                link.click();
+                document.body.removeChild(link);
+            }
+        }
+
+        // ===================================
+        //  5. 計時器優化 (Timer Optimization)
+        // ===================================
+        let tMode = 'countdown', tVal = 300, tInt = null, isRun = false;
+
+        function updateTime(s) { document.getElementById('timer-text').innerText = `${Math.floor(s/60).toString().padStart(2,'0')}:${(s%60).toString().padStart(2,'0')}`; }
+        function switchTimerMode(m) {
+            tMode = m; resetTimer();
+            document.querySelectorAll('#widget-timer .tab-btn').forEach(b => b.classList.remove('active')); 
+            event.target.classList.add('active');
+        }
+        function toggleTimer() {
+            const btn = document.getElementById('play-btn');
+            if (isRun) { clearInterval(tInt); isRun = false; btn.innerText = '▶'; btn.className = 'control-btn w-12 h-12 rounded-full bg-green-500 text-white text-xl'; }
+            else {
+                isRun = true; btn.innerText = '⏸'; btn.className = 'control-btn w-12 h-12 rounded-full bg-yellow-500 text-white text-xl';
+                tInt = setInterval(() => {
+                    if (tMode === 'countdown') { 
+                        if (tVal > 0) { tVal--; updateTime(tVal); } 
+                        else { 
+                            clearInterval(tInt); isRun = false; 
+                            document.getElementById('timer-text').classList.add('text-red-500'); 
+                            playBeep();
+                        } 
+                    }
+                    else { tVal++; updateTime(tVal); }
+                }, 1000);
+            }
+        }
+        function resetTimer() { 
+            clearInterval(tInt); isRun = false; tVal = tMode === 'countdown' ? 300 : 0; updateTime(tVal);
+            document.getElementById('timer-text').classList.remove('text-red-500'); 
+            document.getElementById('play-btn').innerText = '▶'; document.getElementById('play-btn').className = 'control-btn w-12 h-12 rounded-full bg-green-500 text-white text-xl';
+        }
+        function modTime(s) { 
+            if (tMode === 'countdown') { 
+                tVal = Math.max(0, tVal + s); // 確保不為負
+                updateTime(tVal); 
+            }
+        }
+        function playBeep() { /* 簡單的提示音 (同 v7.0 邏輯) */ }
+
+
+        // ===================================
+        //  6. 通用 UI (Universal UI)
+        // ===================================
+
+        // 視窗拖曳 (簡化版)
+        let zIndexCounter = 1000;
+        let draggingElement = null;
+        let offsetX, offsetY;
+
+        function startDrag(e, id) {
+            const el = document.getElementById(id);
+            el.style.zIndex = ++zIndexCounter;
+            draggingElement = el;
+            
+            const p = e.touches ? e.touches[0] : e;
+            offsetX = p.clientX - el.offsetLeft;
+            offsetY = p.clientY - el.offsetTop;
+
+            // 移除 Tailwind 的 translate 居中效果，直接用 left/top 定位
+            el.classList.remove('-translate-x-1/2');
+            
+            document.addEventListener('mousemove', drag, false);
+            document.addEventListener('mouseup', stopDrag, false);
+            document.addEventListener('touchmove', drag, false);
+            document.addEventListener('touchend', stopDrag, false);
+        }
+
+        function drag(e) {
+            if (!draggingElement) return;
+            e.preventDefault(); 
+            const p = e.touches ? e.touches[0] : e;
+            
+            // 限制拖曳範圍在視窗內
+            let newX = p.clientX - offsetX;
+            let newY = p.clientY - offsetY;
+            
+            draggingElement.style.left = newX + 'px';
+            draggingElement.style.top = newY + 'px';
+        }
+
+        function stopDrag() {
+            if (draggingElement) {
+                document.removeEventListener('mousemove', drag, false);
+                document.removeEventListener('mouseup', stopDrag, false);
+                document.removeEventListener('touchmove', drag, false);
+                document.removeEventListener('touchend', stopDrag, false);
+                draggingElement = null;
+            }
+        }
+
+        function toggleWidget(id) {
+            const el = document.getElementById(id);
+            if (el.style.display === 'flex') {
+                el.style.display = 'none';
+            } else {
+                el.style.display = 'flex';
+                el.style.zIndex = ++zIndexCounter;
+            }
+        }
+
+        // 初始化
+        document.addEventListener('DOMContentLoaded', initClass);
+    </script>
+</body>
+</html>
